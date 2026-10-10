@@ -34,7 +34,8 @@ frontend/
     ├── components/
     │   ├── Calculator.tsx      # composes Display + Keypad, owns the hooks
     │   ├── Display.tsx         # presentational
-    │   └── Keypad.tsx          # presentational
+    │   ├── Keypad.tsx          # presentational
+    │   └── Footer.tsx          # "Made with ❤️ and Claude" credit line
     └── test/
         ├── setup.ts            # jest-dom, MSW server lifecycle
         └── server.ts           # MSW handlers
@@ -203,6 +204,13 @@ Handled keys call `preventDefault()`. Keys pressed with Ctrl, Meta or Alt are ig
 - A centred card with `max-width: 380px`. Below 480px it fills the viewport (`100dvh`).
 - Keys use CSS grid with square buttons, at least 56px for touch targets, and a visible `:focus-visible` outline.
 - Light and dark themes follow `prefers-color-scheme`, using CSS custom properties.
+- On short phones (below 480px wide and at most 640px tall, e.g. 320×568) the display is shorter and the gaps tighter, so the footer stays on screen without shrinking the 56px keys.
+
+### 6.4 Footer
+
+- A small, muted credit line at the bottom of the card: "Made with ❤️ and Claude", followed by Claude's spark icon.
+- The icon is an inline SVG (12 alternating long and short rays in Claude's terracotta, `--claude`), so no asset is loaded and the CSP stays `default-src 'self'`. It approximates the official mark; the official SVG can replace it.
+- Screen readers hear "Made with love and Claude": the heart has `role="img"` with the label "love", and the icon is `aria-hidden`.
 
 ## 7. Testing
 

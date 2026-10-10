@@ -36,6 +36,9 @@ var (
 // underflow, but apd doesn't always pick the right one (0.5^-1E+15 is
 // reported as underflow), so the math decides: if the true result tends to 0
 // it rounds to 0 like any other tiny result; otherwise it is out of range.
+//
+// For a fractional y, apd flags every result inexact; exactPower recognises
+// the ones that are exact after all (4^0.5 = 2).
 func power(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, error) {
 	x, y := args[0], args[1]
 	if x.IsZero() && y.Negative && !y.IsZero() {
@@ -48,6 +51,11 @@ func power(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, err
 			return new(apd.Decimal), apd.Inexact | apd.Rounded, nil
 		}
 		return nil, 0, errTooLarge
+	}
+	if err == nil && cond.Inexact() {
+		if r, ok := exactPower(&c.ctx, x, y, d); ok {
+			return r, 0, nil
+		}
 	}
 	return d, cond, err
 }

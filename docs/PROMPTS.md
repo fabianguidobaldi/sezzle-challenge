@@ -74,3 +74,31 @@ Agreed decisions:
 Claude saved a 6-stage plan in `docs/plans/frontend.md` and implemented it. Claude wrote stage 1 (scaffold, test setup and shared types) first, then three subagents built the API client, the calculator reducer and the presentational UI in parallel, while Claude wrote the hooks and wiring, and the nginx and Docker Compose setup. Each stage is one commit. Coverage is 100%.
 
 Claude also checked the app in a real browser (desktop and phone widths, and the Docker stack with no CSP errors) and found that keys typed during an in-flight request were lost. Those keys are now queued and replayed when the response arrives.
+
+## 5. README
+
+### Input
+
+> The Makefile and Dockerfiles are in place. Based on the requirements, we're missing setup instructions, API usage and examples, and the design rationale (this is probably in the specs already). Anything else you noticed that we need to implement?
+
+> Doesn't the curl look a bit "techy"? Not too friendly, to be honest, seeing them in the README.
+
+### Outcome
+
+Claude listed the documentation gaps against the brief and completed the README: quick start, development setup, Make targets, tests and coverage, the API, the repository layout, assumptions and a link to these prompts. Every example was checked against the running server.
+
+Agreed decisions:
+
+- API examples are shown as request → response tables, with a single `curl` to try it.
+- Error messages no longer repeat the operation name (`"division by zero"` instead of `"division by zero: divide"`).
+- No Insomnia collection: the README examples are enough.
+
+## 6. Final check
+
+### Input
+
+> Let's do a final check. Compare the code and the requirements, and see if there's anything else missing.
+
+### Outcome
+
+Claude cloned the repository from scratch, followed the README (`make frontend-install`, `make check`, Docker Compose) and checked every README link. It then compared the brief with the code, item by item. Every requirement is covered. The remaining items were housekeeping: merging the open branches, logging these prompts, and updating the frontend spec and plan (the original plan is kept, with an "Updates after implementation" section).

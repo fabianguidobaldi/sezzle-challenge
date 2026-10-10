@@ -53,7 +53,7 @@ func TestCalculate(t *testing.T) {
 		{Power, []string{"2", "53"}, "9007199254740992", true},
 		{Power, []string{"2", "-3"}, "0.125", true},
 		{Power, []string{"-2", "3"}, "-8", true},
-		{Power, []string{"4", "0.5"}, "2", false}, // exp/ln path: conservative
+		{Power, []string{"4", "0.5"}, "2", true}, // exp/ln path, recovered by exactPower
 		{Power, []string{"2", "0.5"}, "1.414213562373095", false},
 		{Power, []string{"5", "0"}, "1", true},
 		{Power, []string{"0", "5"}, "0", true},
