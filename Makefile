@@ -12,12 +12,12 @@ backend-run: ## Run the API on :8080
 backend-test: ## Run backend tests with the race detector
 	cd $(BACKEND) && go test -race ./...
 
-backend-cover: ## Backend coverage report in backend/coverage/ (profile, summary, HTML)
-	cd $(BACKEND) && mkdir -p coverage && \
-		go test -race -coverprofile=coverage/coverage.out ./... && \
-		go tool cover -func=coverage/coverage.out > coverage/coverage.txt && \
-		go tool cover -html=coverage/coverage.out -o coverage/coverage.html
-	@tail -1 $(BACKEND)/coverage/coverage.txt
+backend-cover: ## Backend coverage report: backend/coverage/index.html
+	@profile=$$(mktemp) && trap 'rm -f "$$profile"' EXIT && \
+		cd $(BACKEND) && mkdir -p coverage && \
+		go test -race -coverprofile="$$profile" ./... && \
+		go tool cover -func="$$profile" | tail -1 && \
+		go tool cover -html="$$profile" -o coverage/index.html
 
 backend-lint: ## Check formatting and run go vet
 	cd $(BACKEND) && test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)
