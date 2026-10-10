@@ -67,9 +67,7 @@ Agreed decisions:
 
 ### Input
 
-> Same approach as before: generate a plan to implement the frontend in independent stages.
-
-> Go for it.
+> Generate a plan to implement the frontend in independent stages.
 
 ### Outcome
 
