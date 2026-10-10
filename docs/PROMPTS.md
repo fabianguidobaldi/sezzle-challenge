@@ -44,3 +44,21 @@ Agreed decisions:
 - Percentage as two backend operations, `percent(x)` and `percent_of(base, rate)`. The frontend picks one from context (`200 + 10 % =` → `220`, `200 × 10 % =` → `20`).
 - A single precision of 16 significant digits instead of 34/100. Operands longer than that are rejected, and rounded results are flagged as `exact: false`.
 - nginx serves the SPA and proxies `/api` to the Go backend, run with Docker Compose. The backend stays a pure JSON API, with no CORS.
+
+## 3. Backend implementation
+
+### Input
+
+> Based on the backend spec, create a plan to split the implementation into independent stages.
+
+> Using that plan, implement the backend. Use subagents to parallelize implementations when possible.
+
+### Outcome
+
+Claude saved a 6-stage plan in `docs/plans/backend.md` and implemented it. Claude wrote stage 1 (the shared domain types and errors) first, then two subagents built stage 2 (operations) and stages 3–4 (HTTP layer) in parallel, while Claude wrote stages 5–6 (server binary, Dockerfile, Makefile). Each stage is one commit. Coverage is 96%.
+
+It generated also an Insomnia collection for manual API testing.
+
+Agreed decisions:
+
+- Plain decimals only, with no exponent notation: at most 16 significant digits, 16 integer digits and 16 decimal places. Tiny results round to `0`, and results of 10¹⁶ or more are out of range.
