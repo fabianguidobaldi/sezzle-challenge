@@ -89,24 +89,20 @@ The reports are committed. Open them in a browser to see covered and uncovered l
 | `percent_of` | `[base, rate]` | base × rate / 100 ("rate% of base") |
 
 - **Operands** are decimal strings in plain notation (`"-12.5"`), with at most 16 significant digits, 16 integer digits and 16 decimal places. JSON numbers are accepted too and their exact text is kept, but strings are recommended, because a JSON number becomes a float in most clients.
-- **Response:** `200` with the `result` as a decimal string, and `exact: false` when the result may have been rounded (shown as `≈` in the UI).
+- **Response:** `200` with the `result` as a decimal string, and `exact: false` when the result may have been rounded (shown as `≈` in the UI). It also echoes the request: `{"operation": "add", "operands": ["0.1", "0.2"], "result": "0.3", "exact": true}`.
+
+| Request | Response (`result`, `exact`) |
+|---|---|
+| `{"operation": "add", "operands": ["0.1", "0.2"]}` | `"0.3"`, `true` |
+| `{"operation": "divide", "operands": ["1", "3"]}` | `"0.3333333333333333"`, `false` |
+| `{"operation": "power", "operands": ["2", "10"]}` | `"1024"`, `true` |
+| `{"operation": "sqrt", "operands": ["2"]}` | `"1.414213562373095"`, `false` |
+| `{"operation": "percent_of", "operands": ["200", "10"]}` | `"20"`, `true` |
+
+Try it with the app running (`make up` or `make backend-dev`):
 
 ```sh
-$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
-    -d '{"operation":"add","operands":["0.1","0.2"]}'
-{"operation":"add","operands":["0.1","0.2"],"result":"0.3","exact":true}
-
-$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
-    -d '{"operation":"divide","operands":["1","3"]}'
-{"operation":"divide","operands":["1","3"],"result":"0.3333333333333333","exact":false}
-
-$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
-    -d '{"operation":"percent_of","operands":["200","10"]}'
-{"operation":"percent_of","operands":["200","10"],"result":"20","exact":true}
-
-$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
-    -d '{"operation":"multiply","operands":[1.5,4]}'
-{"operation":"multiply","operands":["1.5","4"],"result":"6","exact":true}
+curl localhost:8080/api/v1/calculate -H 'Content-Type: application/json' -d '{"operation":"add","operands":["0.1","0.2"]}'
 ```
 
 ### Errors
@@ -128,32 +124,18 @@ Every error has the same shape: `{"error": {"code": "...", "message": "..."}}`. 
 | 422 | `RESULT_OUT_OF_RANGE` | result of 10¹⁶ or more, e.g. `2 ^ 64` |
 | 500 | `INTERNAL_ERROR` | unexpected; details are logged, never returned |
 
-```sh
-$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
-    -d '{"operation":"divide","operands":["1","0"]}'
-{"error":{"code":"DIVISION_BY_ZERO","message":"division by zero"}}
+For example:
 
-$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
-    -d '{"operation":"power","operands":["2","64"]}'
-{"error":{"code":"RESULT_OUT_OF_RANGE","message":"result out of range: results must be less than 10^16 in magnitude"}}
-
-$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
-    -d '{"operation":"add","operands":["1","1e5"]}'
-{"error":{"code":"INVALID_NUMBER","message":"operands[1]: must be a plain decimal number, without an exponent"}}
-
-$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
-    -d '{"operation":"sqrt","operands":["1","2"]}'
-{"error":{"code":"INVALID_OPERAND_COUNT","message":"wrong number of operands: sqrt expects 1 operand, got 2"}}
-```
+| Request | Response |
+|---|---|
+| `{"operation": "divide", "operands": ["1", "0"]}` | `422` `DIVISION_BY_ZERO`: "division by zero" |
+| `{"operation": "power", "operands": ["2", "64"]}` | `422` `RESULT_OUT_OF_RANGE`: "result out of range: results must be less than 10^16 in magnitude" |
+| `{"operation": "add", "operands": ["1", "1e5"]}` | `400` `INVALID_NUMBER`: "operands[1]: must be a plain decimal number, without an exponent" |
+| `{"operation": "sqrt", "operands": ["1", "2"]}` | `400` `INVALID_OPERAND_COUNT`: "wrong number of operands: sqrt expects 1 operand, got 2" |
 
 ### `GET /healthz`
 
-```sh
-$ curl -s localhost:8080/healthz
-{"status":"ok"}
-```
-
-Used by the Docker healthcheck (`/server -healthcheck`, since the distroless image has no curl).
+Returns `200` `{"status": "ok"}`. Used by the Docker healthcheck (`/server -healthcheck`, since the distroless image has no curl).
 
 ## Repository layout
 
