@@ -1,9 +1,195 @@
 # Sezzle Calculator
 
-A full-stack calculator with a React + TypeScript keypad frontend and a Go REST microservice that does all the arithmetic, using exact decimals.
+A full-stack calculator: a React + TypeScript keypad frontend, and a Go REST microservice that does all the arithmetic using exact decimals, so `0.1 + 0.2 = 0.3`.
 
-> Setup instructions, how to run each part, API examples and coverage reports will be added as the implementation lands. The detailed specs are in [`docs/specs/`](docs/specs/):
-> [backend](docs/specs/backend.md) · [frontend](docs/specs/frontend.md) · [deployment](docs/specs/deployment.md).
+- [Quick start](#quick-start)
+- [Development setup](#development-setup)
+- [Tests and coverage](#tests-and-coverage)
+- [API](#api)
+- [Repository layout](#repository-layout)
+- [Assumptions](#assumptions)
+- [Design decisions](#design-decisions)
+- [AI prompts](#ai-prompts)
+
+## Quick start
+
+With Docker installed:
+
+```sh
+make up        # or: docker compose up --build
+```
+
+Open **http://localhost:8080**. nginx serves the app and proxies `/api` to the Go backend, which isn't exposed on its own. Stop the stack with `make down` (or Ctrl+C, then `make down`).
+
+To try it on a phone on the same network, open `http://<your-computer's-IP>:8080`.
+
+## Development setup
+
+**Prerequisites:** Go 1.26+, Node 24 (see `frontend/.nvmrc`) and GNU Make. Docker is only needed for `make up` and `make build`.
+
+```sh
+make frontend-install   # npm ci; Go fetches its modules on first run
+```
+
+Run each part in its own terminal:
+
+```sh
+make backend-dev    # API on http://localhost:8080
+make frontend-dev   # app on http://localhost:5173, proxies /api to :8080
+```
+
+The frontend always calls relative `/api/...` URLs. The Vite dev server forwards them to the backend in development and nginx does the same in Docker, so neither needs CORS or an API URL setting.
+
+Backend configuration: `PORT` (default `8080`).
+
+### Make targets
+
+| Target | What it does |
+|---|---|
+| `make backend-dev` | Run the API on :8080 |
+| `make backend-test` | Backend tests (race detector), writes `backend/coverage/index.html` |
+| `make backend-lint` | `gofmt` check and `go vet` |
+| `make frontend-install` | Install frontend dependencies (`npm ci`) |
+| `make frontend-dev` | Vite dev server |
+| `make frontend-test` | Frontend tests, writes `frontend/coverage/index.html` |
+| `make frontend-lint` | oxlint and TypeScript type check |
+| `make check` | Lint and test both projects |
+| `make build` | Build both Docker images |
+| `make up` / `make down` | Start / stop the full stack with Docker Compose |
+
+These are also the commands a CI/CD pipeline would run: `make frontend-install`, `make check`, then `make build`.
+
+## Tests and coverage
+
+```sh
+make check
+```
+
+| Project | Tests | Statement coverage | Report |
+|---|---|---|---|
+| Backend (Go) | domain, HTTP layer, and an end-to-end test over HTTP with the real calculator | 96% | [`backend/coverage/index.html`](backend/coverage/index.html) |
+| Frontend (Vitest + Testing Library + MSW) | 283 tests: API client, state machine, components, hooks, and end-to-end flows by click and keyboard | 100% | [`frontend/coverage/index.html`](frontend/coverage/index.html) |
+
+The reports are committed. Open them in a browser to see covered and uncovered lines. The backend's uncovered statements are `main()` and error branches that can't be reached (e.g. a `Quantize` that can't fail).
+
+## API
+
+### `POST /api/v1/calculate`
+
+```json
+{ "operation": "divide", "operands": ["1", "3"] }
+```
+
+| Operation | Operands | Result |
+|---|---|---|
+| `add`, `subtract`, `multiply`, `divide` | `[a, b]` | a + b, a − b, a × b, a ÷ b |
+| `power` | `[base, exponent]` | base^exponent |
+| `sqrt` | `[x]` | √x |
+| `percent` | `[x]` | x / 100 |
+| `percent_of` | `[base, rate]` | base × rate / 100 ("rate% of base") |
+
+- **Operands** are decimal strings in plain notation (`"-12.5"`), with at most 16 significant digits, 16 integer digits and 16 decimal places. JSON numbers are accepted too and their exact text is kept, but strings are recommended, because a JSON number becomes a float in most clients.
+- **Response:** `200` with the `result` as a decimal string, and `exact: false` when the result may have been rounded (shown as `≈` in the UI).
+
+```sh
+$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
+    -d '{"operation":"add","operands":["0.1","0.2"]}'
+{"operation":"add","operands":["0.1","0.2"],"result":"0.3","exact":true}
+
+$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
+    -d '{"operation":"divide","operands":["1","3"]}'
+{"operation":"divide","operands":["1","3"],"result":"0.3333333333333333","exact":false}
+
+$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
+    -d '{"operation":"percent_of","operands":["200","10"]}'
+{"operation":"percent_of","operands":["200","10"],"result":"20","exact":true}
+
+$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
+    -d '{"operation":"multiply","operands":[1.5,4]}'
+{"operation":"multiply","operands":["1.5","4"],"result":"6","exact":true}
+```
+
+### Errors
+
+Every error has the same shape: `{"error": {"code": "...", "message": "..."}}`. A `400` means "fix your request"; a `422` means the request is valid but the maths has no answer.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_REQUEST` | malformed JSON, unknown or missing fields, wrong types |
+| 400 | `UNKNOWN_OPERATION` | `operation` isn't one of the above |
+| 400 | `INVALID_OPERAND_COUNT` | wrong number of operands |
+| 400 | `INVALID_NUMBER` | an operand isn't a plain decimal within the format |
+| 404 | `NOT_FOUND` | unknown path |
+| 405 | `METHOD_NOT_ALLOWED` | not a `POST` (the `Allow` header says which method is) |
+| 413 | `REQUEST_TOO_LARGE` | body over 4 KiB |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` isn't `application/json` |
+| 422 | `DIVISION_BY_ZERO` | `x / 0`, `0 ^ -1` |
+| 422 | `UNDEFINED_RESULT` | `√-4`, `0 ^ 0`, `(-8) ^ 0.5` |
+| 422 | `RESULT_OUT_OF_RANGE` | result of 10¹⁶ or more, e.g. `2 ^ 64` |
+| 500 | `INTERNAL_ERROR` | unexpected; details are logged, never returned |
+
+```sh
+$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
+    -d '{"operation":"divide","operands":["1","0"]}'
+{"error":{"code":"DIVISION_BY_ZERO","message":"division by zero"}}
+
+$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
+    -d '{"operation":"power","operands":["2","64"]}'
+{"error":{"code":"RESULT_OUT_OF_RANGE","message":"result out of range: results must be less than 10^16 in magnitude"}}
+
+$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
+    -d '{"operation":"add","operands":["1","1e5"]}'
+{"error":{"code":"INVALID_NUMBER","message":"operands[1]: must be a plain decimal number, without an exponent"}}
+
+$ curl -s localhost:8080/api/v1/calculate -H 'Content-Type: application/json' \
+    -d '{"operation":"sqrt","operands":["1","2"]}'
+{"error":{"code":"INVALID_OPERAND_COUNT","message":"wrong number of operands: sqrt expects 1 operand, got 2"}}
+```
+
+### `GET /healthz`
+
+```sh
+$ curl -s localhost:8080/healthz
+{"status":"ok"}
+```
+
+Used by the Docker healthcheck (`/server -healthcheck`, since the distroless image has no curl).
+
+## Repository layout
+
+```
+backend/                Go module (stdlib HTTP + cockroachdb/apd)
+  cmd/server/           entry point: config, graceful shutdown, -healthcheck
+  internal/calculator/  domain: number format, operations, errors (no HTTP)
+  internal/api/         HTTP: decoding, routing, error mapping, middleware
+frontend/               Vite + React + TypeScript
+  src/api/              typed API client
+  src/calculator/       keypad state machine (pure reducer), keys, messages
+  src/hooks/            useCalculator (API calls), useKeyboard
+  src/components/       Calculator, Display, Keypad, Footer
+  nginx.conf            static files + /api proxy
+docs/
+  specs/                backend, frontend and deployment specs
+  plans/                staged implementation plans
+  PROMPTS.md            the AI prompts used to build this
+compose.yaml, Makefile
+```
+
+## Assumptions
+
+- **Immediate execution:** each operator applies to the running result, like a basic physical calculator: `2 + 3 × 4 =` is `20`, not `14`.
+- **Percentage** follows the pocket-calculator convention: after `+` or `−` it's a percentage of the running value (`200 + 10 % =` → `220`); otherwise it divides by 100 (`200 × 10 % =` → `20`).
+- **Numbers** are plain decimals within a 16-digit pocket calculator's range: at most 16 significant digits, 16 integer digits and 16 decimal places.
+  - Inputs outside the range are rejected, never silently rounded.
+  - Results are exact when they fit. Otherwise they're rounded half-even, and too-small results become `0`.
+  - Results of 10¹⁶ or more are errors.
+- **`exact: false` means "may have been rounded".** It's conservative: `4 ^ 0.5` is computed through logarithms and reported as inexact even though it's `2`.
+- **Special cases:**
+  - `0 / 0` and `0 ^ -n` are division by zero.
+  - `0 ^ 0` is undefined, as in the General Decimal Arithmetic spec.
+  - `√` of a negative number is undefined.
+- **The service is stateless:** no users, authentication, history or persistence.
+- **Clients:** modern evergreen browsers. On phones, portrait is the main layout.
 
 ## Design decisions
 
@@ -95,8 +281,20 @@ Each decision lists what was chosen, the alternative that was discarded, and why
 - **Discarded:** returning `400` for everything, or plain-text errors.
 - **Why:** clients can tell "fix your request" apart from "this calculation has no result", and the frontend maps codes to friendly messages without parsing text.
 
-### Out of scope (for now)
+### 12. Keys typed during a calculation are queued, not dropped
 
-- CI pipeline
-- Repeated `=` (re-applying the last operation) and `2 + =` (applying the operation to the displayed value)
-- Calculation history
+- **Chosen:** while a request is in flight, key presses are queued in the reducer's state and replayed in order when the response arrives. A failure or AC discards them.
+- **Discarded:**
+  - Ignoring input while busy (the original spec).
+  - Disabling the keypad, which makes it flicker on every calculation.
+- **Why:** found by testing in a real browser. Typing `200+10%=` quickly lost the `=`, because it arrived before the `%` result, and the display ended on `20` instead of `220`. Unit tests with an instant fake API couldn't catch it. A new end-to-end test types with no delay between keys.
+
+### Out of scope
+
+- A CI/CD pipeline. The Make targets are ready for one (see [Make targets](#make-targets)).
+- Repeated `=` (re-applying the last operation) and `2 + =` (applying the operation to the displayed value).
+- Calculation history.
+
+## AI prompts
+
+This project was built with Claude Code. The prompts used, and what came out of each, are in [`docs/PROMPTS.md`](docs/PROMPTS.md). The specs and staged plans those prompts produced are in [`docs/specs/`](docs/specs/) and [`docs/plans/`](docs/plans/).
