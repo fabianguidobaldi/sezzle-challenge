@@ -67,7 +67,7 @@ make check
 
 | Project | Tests | Statement coverage | Report |
 |---|---|---|---|
-| Backend (Go) | domain, HTTP layer, and an end-to-end test over HTTP with the real calculator | 96% | [`backend/coverage/index.html`](backend/coverage/index.html) |
+| Backend (Go) | domain, HTTP layer, and an end-to-end test over HTTP with the real calculator | 95.5% | [`backend/coverage/index.html`](backend/coverage/index.html) |
 | Frontend (Vitest + Testing Library + MSW) | 283 tests: API client, state machine, components, hooks, and end-to-end flows by click and keyboard | 100% | [`frontend/coverage/index.html`](frontend/coverage/index.html) |
 
 The reports are committed. Open them in a browser to see covered and uncovered lines. The backend's uncovered statements are `main()` and error branches that can't be reached (e.g. a `Quantize` that can't fail).
@@ -97,6 +97,7 @@ The reports are committed. Open them in a browser to see covered and uncovered l
 | `{"operation": "divide", "operands": ["1", "3"]}` | `"0.3333333333333333"`, `false` |
 | `{"operation": "power", "operands": ["2", "10"]}` | `"1024"`, `true` |
 | `{"operation": "sqrt", "operands": ["2"]}` | `"1.414213562373095"`, `false` |
+| `{"operation": "power", "operands": ["4", "0.5"]}` | `"2"`, `true` |
 | `{"operation": "percent_of", "operands": ["200", "10"]}` | `"20"`, `true` |
 
 Try it with the app running (`make up` or `make backend-dev`):
@@ -165,7 +166,11 @@ compose.yaml, Makefile
   - Inputs outside the range are rejected, never silently rounded.
   - Results are exact when they fit. Otherwise they're rounded half-even, and too-small results become `0`.
   - Results of 10¹⁶ or more are errors.
-- **`exact: false` means "may have been rounded".** It's conservative: `4 ^ 0.5` is computed through logarithms and reported as inexact even though it's `2`.
+- **`exact` is reliable.**
+  - `exact: true` is a guarantee.
+  - `exact: false` means the result was rounded.
+  - The one subtle case is `power` with a fractional exponent. The decimal library computes it through logarithms and always flags it as rounded, so the backend double-checks the answer with exact integer arithmetic: `4 ^ 0.5 = 2` is checked as `2² = 4` and reported exact, while `2 ^ 0.5` stays inexact.
+  - The check covers exponents whose fraction has a denominator up to 100 (`.5`, `.25`, `.2`, …). Beyond that, a result keeps the library's cautious `exact: false` (see [backend spec §2.9](docs/specs/backend.md#29-exactness-of-fractional-powers-exactpowergo)).
 - **Special cases:**
   - `0 / 0` and `0 ^ -n` are division by zero.
   - `0 ^ 0` is undefined, as in the General Decimal Arithmetic spec.

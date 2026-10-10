@@ -13,6 +13,7 @@ backend/
     ├── calculator/             # domain: pure, no HTTP, no I/O
     │   ├── calculator.go       # Calculator, Calculate(), operation registry
     │   ├── operations.go       # one function per operation
+    │   ├── exactpower.go       # exactness check for fractional powers (§2.9)
     │   ├── decimal.go          # parsing (with limits) and formatting
     │   ├── errors.go           # sentinel errors + OperandError
     │   └── *_test.go
@@ -108,7 +109,7 @@ Computation uses a single `apd.Context` with a **working precision of 34 digits*
 - **A result is exact whenever it fits the format**: `0.1 + 0.2 = 0.3`, `1/4`, `√16`, `2^-3`, `99999999 × 99999999 = 9999999800000001`.
 - **Otherwise it's correctly rounded** (half-even) to 16 significant digits and 16 decimal places: `1/3 → 0.3333333333333333`, `1/3000 → 0.0003333333333333`, `√2 → 1.414213562373095`. Results too small for the format round to `0` (`0.0000000001² → 0`), as on a physical calculator.
 - **Results of 10¹⁶ or more are `ErrOutOfRange`** (`2^64`, `9999999999999999 + 1`).
-- `Exact = !condition.Inexact()`, combining the conditions of the operation and of the final rounding. This is conservative: apd computes fractional powers with exp/ln, so `4 ^ 0.5` reports `exact: false` even though the result is 2. `exact: false` means "may have been rounded".
+- `Exact = !condition.Inexact()`, combining the conditions of the operation and of the final rounding. apd reports this correctly for every operation except `power` with a fractional exponent, which it computes with exp/ln and always flags as inexact. §2.9 corrects that, so `4 ^ 0.5 = 2` is exact. `exact: true` is always a guarantee. `exact: false` means "rounded", except for the rare fractional powers beyond §2.9's limits, where it means "may have been rounded".
 
 ### 2.4 Parsing operands (`decimal.go`)
 
@@ -173,6 +174,27 @@ Errors are wrapped with `fmt.Errorf("%w: ...")` so their messages are specific, 
 ### 2.8 `power` beyond the working range
 
 apd's cost for `x^y` grows with log(y), so no exponent limit is needed. When the result leaves the working exponent range, apd reports overflow or underflow, but not always the right one: `0.5^-9999999999999999` is reported as underflow. So the math decides. If |x| < 1 with y > 0, or |x| > 1 with y < 0, the true result tends to 0 and rounds to `0` (inexact) like any other tiny result; otherwise it's `ErrOutOfRange`.
+
+### 2.9 Exactness of fractional powers (`exactpower.go`)
+
+For a fractional exponent, apd computes `x^y` as `exp(y · ln x)`, and both steps round, so the result is always flagged inexact, even when it's a finite decimal (`4^0.5 = 2`, `32^0.2 = 2`). When that happens, `power` checks the result exactly:
+
+1. Write `y` as a fraction `num/den` in lowest terms (`0.5 = 1/2`, `1.25 = 5/4`, `-0.2 = -1/5`).
+2. Round apd's result to the number format, giving `r`.
+3. `x^y` is exactly `r` if and only if **`r^den = x^num`**. Both sides are integer powers of finite decimals, so they are computed **without rounding** (for `num < 0`, the check is `r^den × x^|num| = 1`).
+4. If the equation holds, the result is `r` with `exact: true`; otherwise apd's result stands, with `exact: false`.
+
+| Input | Check | Result |
+| ----- | ----- | ------ |
+| `4 ^ 0.5` | `2² = 4` ✓ | `2`, exact |
+| `32 ^ 0.2` | `2⁵ = 32` ✓ | `2`, exact |
+| `16 ^ -1.25` | `0.03125⁴ × 16⁵ = 1` ✓ | `0.03125`, exact |
+| `2 ^ 0.5` | `1.414213562373095² ≠ 2` | `1.414213562373095`, inexact |
+| `8 ^ 0.75` | `4.756828460010884⁴ ≠ 8³` | `4.756828460010884`, inexact |
+
+The check can only turn an inexact flag into an exact one when the equation proves it, so it never marks a rounded result as exact.
+
+**Limits.** To keep the check to a few thousand digits of integer arithmetic (under 1 ms in the worst case), it runs only when `den ≤ 100` (covers `.5`, `.25`, `.2`, `.125`, …) and `x^|num|` has at most 2000 digits. Outside these limits the result keeps apd's inexact flag, even if it happens to be exact (e.g. `2^0.001`'s exactness is never checked).
 
 ## 3. HTTP API (`internal/api`)
 

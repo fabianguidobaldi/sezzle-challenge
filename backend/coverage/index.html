@@ -73,7 +73,9 @@
 				
 				<option value="file8">github.com/fabianguidobaldi/sezzle-challenge/backend/internal/calculator/errors.go (100.0%)</option>
 				
-				<option value="file9">github.com/fabianguidobaldi/sezzle-challenge/backend/internal/calculator/operations.go (97.0%)</option>
+				<option value="file9">github.com/fabianguidobaldi/sezzle-challenge/backend/internal/calculator/exactpower.go (91.7%)</option>
+				
+				<option value="file10">github.com/fabianguidobaldi/sezzle-challenge/backend/internal/calculator/operations.go (97.2%)</option>
 				
 				</select>
 			</div>
@@ -668,7 +670,7 @@ const (
 )
 
 // newContext returns the arithmetic context shared by every operation.
-func newContext() apd.Context <span class="cov2" title="6">{
+func newContext() apd.Context <span class="cov3" title="8">{
         return apd.Context{
                 Precision:   workingPrecision,
                 Rounding:    apd.RoundHalfEven,
@@ -686,7 +688,7 @@ type Calculator struct {
 }
 
 // New returns a Calculator using the shared arithmetic context.
-func New() *Calculator <span class="cov2" title="5">{
+func New() *Calculator <span class="cov3" title="7">{
         return &amp;Calculator{ctx: newContext()}
 }</span>
 
@@ -714,40 +716,40 @@ var registry = map[Operation]operation{
 // Calculate validates the operation and operands, computes the result and
 // formats it. Errors wrap one of the sentinels in errors.go, or are an
 // *OperandError for a rejected operand.
-func (c *Calculator) Calculate(op Operation, operands []string) (Result, error) <span class="cov9" title="3293">{
+func (c *Calculator) Calculate(op Operation, operands []string) (Result, error) <span class="cov9" title="3312">{
         o, ok := registry[op]
         if !ok </span><span class="cov1" title="2">{
                 return Result{}, fmt.Errorf("%w: %q", ErrUnknownOperation, op)
         }</span>
-        <span class="cov9" title="3291">if len(operands) != o.arity </span><span class="cov2" title="4">{
+        <span class="cov9" title="3310">if len(operands) != o.arity </span><span class="cov2" title="4">{
                 return Result{}, fmt.Errorf("%w: %s expects %d %s, got %d",
                         ErrOperandCount, op, o.arity, plural(o.arity, "operand"), len(operands))
         }</span>
 
-        <span class="cov9" title="3287">args := make([]*apd.Decimal, len(operands))
-        for i, s := range operands </span><span class="cov10" title="5920">{
+        <span class="cov9" title="3306">args := make([]*apd.Decimal, len(operands))
+        for i, s := range operands </span><span class="cov10" title="5958">{
                 d, err := parseOperand(i, s)
                 if err != nil </span><span class="cov1" title="1">{
                         return Result{}, err
                 }</span>
-                <span class="cov9" title="5919">args[i] = d</span>
+                <span class="cov9" title="5957">args[i] = d</span>
         }
 
-        <span class="cov9" title="3286">d, cond, err := o.apply(c, args)
+        <span class="cov9" title="3305">d, cond, err := o.apply(c, args)
         if err := domainError(op, d, cond, err); err != nil </span><span class="cov3" title="11">{
                 return Result{}, err
         }</span>
-        <span class="cov9" title="3275">roundCond, err := roundResult(&amp;c.ctx, d)
-        if err != nil </span><span class="cov3" title="8">{
+        <span class="cov9" title="3294">roundCond, err := roundResult(&amp;c.ctx, d)
+        if err != nil </span><span class="cov3" title="9">{
                 return Result{}, err
         }</span>
-        <span class="cov9" title="3267">return Result{Value: formatResult(d), Exact: !(cond | roundCond).Inexact()}, nil</span>
+        <span class="cov9" title="3285">return Result{Value: formatResult(d), Exact: !(cond | roundCond).Inexact()}, nil</span>
 }
 
 // domainError maps the outcome of an apd computation to a domain error, or
 // nil if d is a usable result. Errors already in domain terms (from checks
 // done before calling apd) pass through unchanged.
-func domainError(op Operation, d *apd.Decimal, cond apd.Condition, err error) error <span class="cov9" title="3288">{
+func domainError(op Operation, d *apd.Decimal, cond apd.Condition, err error) error <span class="cov9" title="3307">{
         switch </span>{
         case cond.DivisionByZero() || cond.DivisionUndefined():<span class="cov2" title="3">
                 return ErrDivisionByZero</span>
@@ -762,7 +764,7 @@ func domainError(op Operation, d *apd.Decimal, cond apd.Condition, err error) er
                 // Safety net: apd can return Infinity or NaN without raising a condition.
                 return ErrUndefined</span>
         }
-        <span class="cov9" title="3275">return nil</span>
+        <span class="cov9" title="3294">return nil</span>
 }
 
 // isDomainError reports whether err already wraps one of the package's sentinels.
@@ -799,12 +801,12 @@ const maxOperandLength = 64
 // parseOperand converts the operand at the given index into a decimal.
 // Operands must already be in the number format (see Precision); they are
 // rejected, never rounded. Every error is an *OperandError.
-func parseOperand(index int, s string) (*apd.Decimal, error) <span class="cov9" title="5965">{
+func parseOperand(index int, s string) (*apd.Decimal, error) <span class="cov9" title="6013">{
         reject := func(reason string) error </span><span class="cov3" title="20">{
                 return &amp;OperandError{Index: index, Value: s, Reason: reason}
         }</span>
 
-        <span class="cov9" title="5965">switch </span>{
+        <span class="cov9" title="6013">switch </span>{
         case s == "":<span class="cov1" title="1">
                 return nil, reject("must not be empty")</span>
         case len(s) &gt; maxOperandLength:<span class="cov1" title="1">
@@ -813,16 +815,16 @@ func parseOperand(index int, s string) (*apd.Decimal, error) <span class="cov9" 
                 return nil, reject("must be a plain decimal number, without an exponent")</span>
         }
 
-        <span class="cov9" title="5961">d, _, err := apd.NewFromString(s)
+        <span class="cov9" title="6009">d, _, err := apd.NewFromString(s)
         if err != nil </span><span class="cov2" title="8">{
                 return nil, reject("is not a valid decimal number")
         }</span>
-        <span class="cov9" title="5953">if d.Form != apd.Finite </span><span class="cov2" title="4">{
+        <span class="cov9" title="6001">if d.Form != apd.Finite </span><span class="cov2" title="4">{
                 return nil, reject("must be a finite number")
         }</span>
 
         // Trailing zeros are not significant: "1.000" has one digit.
-        <span class="cov9" title="5949">d.Reduce(d)
+        <span class="cov9" title="5997">d.Reduce(d)
         switch </span>{
         case d.NumDigits() &gt; Precision:<span class="cov1" title="2">
                 return nil, reject(fmt.Sprintf("must have at most %d significant digits", Precision))</span>
@@ -831,46 +833,46 @@ func parseOperand(index int, s string) (*apd.Decimal, error) <span class="cov9" 
         case adjustedExponent(d) &gt;= Precision:<span class="cov1" title="1">
                 return nil, reject(fmt.Sprintf("must have at most %d integer digits", Precision))</span>
         }
-        <span class="cov9" title="5945">return d, nil</span>
+        <span class="cov9" title="5993">return d, nil</span>
 }
 
 // roundResult rounds d in place to the number format: at most Precision
 // significant digits and MaxDecimalPlaces decimal places, so values too small
 // for the format become 0. It returns an ErrOutOfRange error if the rounded
 // value has more than Precision integer digits.
-func roundResult(ctx *apd.Context, d *apd.Decimal) (apd.Condition, error) <span class="cov8" title="3288">{
-        if d.IsZero() </span><span class="cov3" title="11">{
+func roundResult(ctx *apd.Context, d *apd.Decimal) (apd.Condition, error) <span class="cov8" title="3326">{
+        if d.IsZero() </span><span class="cov3" title="12">{
                 return 0, nil
         }</span>
-        <span class="cov8" title="3277">var cond apd.Condition
+        <span class="cov8" title="3314">var cond apd.Condition
         exp := max(adjustedExponent(d)-(Precision-1), -MaxDecimalPlaces)
-        if int64(d.Exponent) &lt; exp </span><span class="cov8" title="1971">{
+        if int64(d.Exponent) &lt; exp </span><span class="cov8" title="1997">{
                 var err error
                 if cond, err = ctx.Quantize(d, d, int32(exp)); err != nil </span><span class="cov0" title="0">{
                         return cond, err
                 }</span>
         }
         // Rounding can carry into a new digit (9999999999999999.5 → 1E+16).
-        <span class="cov8" title="3277">if !d.IsZero() &amp;&amp; adjustedExponent(d) &gt;= Precision </span><span class="cov3" title="11">{
+        <span class="cov8" title="3314">if !d.IsZero() &amp;&amp; adjustedExponent(d) &gt;= Precision </span><span class="cov3" title="13">{
                 return cond, errTooLarge
         }</span>
-        <span class="cov8" title="3266">return cond, nil</span>
+        <span class="cov8" title="3301">return cond, nil</span>
 }
 
 // formatResult renders a value in the number format as a canonical plain
 // decimal string: trailing zeros removed and no negative zero.
-func formatResult(d *apd.Decimal) string <span class="cov8" title="3312">{
-        if d.IsZero() </span><span class="cov4" title="25">{
+func formatResult(d *apd.Decimal) string <span class="cov8" title="3330">{
+        if d.IsZero() </span><span class="cov4" title="27">{
                 return "0"
         }</span>
-        <span class="cov8" title="3287">var r apd.Decimal
+        <span class="cov8" title="3303">var r apd.Decimal
         r.Reduce(d)
         return r.Text('f')</span>
 }
 
 // adjustedExponent is the exponent of d's most significant digit
 // (e.g. 3 for 1234, -2 for 0.0123).
-func adjustedExponent(d *apd.Decimal) int64 <span class="cov10" title="12493">{
+func adjustedExponent(d *apd.Decimal) int64 <span class="cov10" title="12613">{
         return int64(d.Exponent) + d.NumDigits() - 1
 }</span>
 </pre>
@@ -914,6 +916,107 @@ func (e *OperandError) Unwrap() error <span class="cov10" title="20">{ return Er
 		
 		<pre class="file" id="file9" style="display: none">package calculator
 
+import "github.com/cockroachdb/apd/v3"
+
+// apd computes x^y with a fractional y through exp and ln, which always
+// flags the result as inexact, even for 4^0.5 = 2. exactPower recovers the
+// cases that are in fact exact by checking the rounded result with exact
+// integer arithmetic.
+
+// Limits that keep the check to a few thousand digits of integer arithmetic.
+// Beyond them, results simply keep apd's conservative inexact flag.
+const (
+        maxExactDenominator = 100  // y = num/den with den ≤ 100: covers .5, .25, .2, .125, ...
+        maxExactDigits      = 2000 // digits of x^|num|
+)
+
+// exactCtx multiplies without rounding for any value within the limits above:
+// r^den has at most Precision × maxExactDenominator digits, x^|num| at most
+// maxExactDigits, and their product at most the sum.
+var exactCtx = apd.Context{
+        Precision:   Precision*maxExactDenominator + maxExactDigits,
+        MaxExponent: apd.MaxExponent,
+        MinExponent: apd.MinExponent,
+}
+
+// exactPower reports whether x^y, which apd computed as d and flagged
+// inexact, is exactly representable in the number format. If so, it returns
+// that value. With y = num/den in lowest terms and r = d rounded to the
+// format, x^y = r exactly if and only if r^den = x^num, which only needs
+// integer powers of finite decimals and can be checked without rounding.
+func exactPower(ctx *apd.Context, x, y, d *apd.Decimal) (*apd.Decimal, bool) <span class="cov7" title="21">{
+        num, den, ok := smallFraction(y)
+        if !ok || x.NumDigits()*abs(num) &gt; maxExactDigits </span><span class="cov2" title="2">{
+                return nil, false
+        }</span>
+
+        <span class="cov7" title="19">r := new(apd.Decimal).Set(d)
+        if _, err := roundResult(ctx, r); err != nil || r.IsZero() </span><span class="cov2" title="2">{
+                return nil, false
+        }</span>
+
+        <span class="cov6" title="17">var lhs, rhs apd.Decimal
+        if !exactly(exactCtx.Pow(&amp;lhs, r, apd.New(den, 0))) || !exactly(exactCtx.Pow(&amp;rhs, x, apd.New(abs(num), 0))) </span><span class="cov0" title="0">{
+                return nil, false
+        }</span>
+        <span class="cov6" title="17">if num &lt; 0 </span><span class="cov3" title="3">{
+                // r^den = 1/x^|num|  ⇔  r^den × x^|num| = 1
+                if !exactly(exactCtx.Mul(&amp;lhs, &amp;lhs, &amp;rhs)) </span><span class="cov0" title="0">{
+                        return nil, false
+                }</span>
+                <span class="cov3" title="3">return r, lhs.Cmp(one) == 0</span>
+        }
+        <span class="cov6" title="14">return r, lhs.Cmp(&amp;rhs) == 0</span>
+}
+
+// smallFraction writes a non-integer y as num/den in lowest terms. It fails
+// for integers (apd already reports their powers' exactness correctly) and
+// for denominators above maxExactDenominator.
+func smallFraction(y *apd.Decimal) (num, den int64, ok bool) <span class="cov8" title="31">{
+        var r apd.Decimal
+        r.Reduce(y)
+        if r.Exponent &gt;= 0 </span><span class="cov2" title="2">{
+                return 0, 0, false
+        }</span>
+        // Operands have at most 16 significant digits and 16 decimal places, so
+        // both the coefficient and 10^places fit in an int64.
+        <span class="cov8" title="29">coeff := r
+        coeff.Exponent = 0
+        num, err := coeff.Int64()
+        if err != nil </span><span class="cov0" title="0">{
+                return 0, 0, false
+        }</span>
+        <span class="cov8" title="29">den = 1
+        for range -r.Exponent </span><span class="cov9" title="55">{
+                den *= 10
+        }</span>
+        <span class="cov8" title="29">g := gcd(abs(num), den)
+        num, den = num/g, den/g
+        return num, den, den &lt;= maxExactDenominator</span>
+}
+
+// exactly reports whether an exactCtx operation succeeded without rounding.
+func exactly(cond apd.Condition, err error) bool <span class="cov8" title="37">{
+        return err == nil &amp;&amp; !cond.Inexact()
+}</span>
+
+func gcd(a, b int64) int64 <span class="cov8" title="29">{
+        for b != 0 </span><span class="cov10" title="74">{
+                a, b = b, a%b
+        }</span>
+        <span class="cov8" title="29">return a</span>
+}
+
+func abs(n int64) int64 <span class="cov9" title="66">{
+        if n &lt; 0 </span><span class="cov5" title="10">{
+                return -n
+        }</span>
+        <span class="cov9" title="56">return n</span>
+}
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">package calculator
+
 import (
         "fmt"
 
@@ -950,12 +1053,15 @@ var (
 // underflow, but apd doesn't always pick the right one (0.5^-1E+15 is
 // reported as underflow), so the math decides: if the true result tends to 0
 // it rounds to 0 like any other tiny result; otherwise it is out of range.
-func power(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, error) <span class="cov9" title="665">{
+//
+// For a fractional y, apd flags every result inexact; exactPower recognises
+// the ones that are exact after all (4^0.5 = 2).
+func power(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, error) <span class="cov9" title="684">{
         x, y := args[0], args[1]
         if x.IsZero() &amp;&amp; y.Negative &amp;&amp; !y.IsZero() </span><span class="cov1" title="2">{
                 return nil, 0, fmt.Errorf("%w: zero raised to a negative power", ErrDivisionByZero)
         }</span>
-        <span class="cov9" title="663">d := new(apd.Decimal)
+        <span class="cov9" title="682">d := new(apd.Decimal)
         cond, err := c.ctx.Pow(d, x, y)
         if cond.Overflow() || cond.Underflow() </span><span class="cov3" title="5">{
                 if tendsToZero(x, y) </span><span class="cov2" title="3">{
@@ -963,7 +1069,12 @@ func power(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, err
                 }</span>
                 <span class="cov1" title="2">return nil, 0, errTooLarge</span>
         }
-        <span class="cov9" title="658">return d, cond, err</span>
+        <span class="cov9" title="677">if err == nil &amp;&amp; cond.Inexact() </span><span class="cov4" title="21">{
+                if r, ok := exactPower(&amp;c.ctx, x, y, d); ok </span><span class="cov4" title="11">{
+                        return r, 0, nil
+                }</span>
+        }
+        <span class="cov9" title="666">return d, cond, err</span>
 }
 
 // tendsToZero reports whether |x^y| &lt; 1, i.e. |x| &lt; 1 with y &gt; 0 or |x| &gt; 1
