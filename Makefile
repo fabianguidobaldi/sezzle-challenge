@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help backend-run backend-test backend-cover backend-lint backend-docker \
-	frontend-install frontend-dev frontend-test frontend-cover frontend-lint
+	frontend-install frontend-dev frontend-test frontend-cover frontend-lint up down
 
 BACKEND := backend
 FRONTEND := frontend
@@ -42,3 +42,9 @@ frontend-cover: ## Frontend coverage report: frontend/coverage/index.html
 
 frontend-lint: ## Lint and type-check the frontend
 	cd $(FRONTEND) && npm run lint && npm run typecheck
+
+up: ## Build and run the full stack with Docker Compose on http://localhost:8080
+	docker compose up --build
+
+down: ## Stop the Docker Compose stack
+	docker compose down
