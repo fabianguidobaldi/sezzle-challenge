@@ -6,12 +6,11 @@ import (
 	"github.com/cockroachdb/apd/v3"
 )
 
-// hundred is the divisor for percentages. It is never modified.
-var hundred = apd.New(100, 0)
-
-// maxPowerExponent bounds |y| in x^y. Larger exponents would over- or
-// underflow for any base other than ±1 or 0, and cost CPU to find out.
-var maxPowerExponent = apd.New(maxExponent, 0)
+// Constants used by the operations. They are never modified.
+var (
+	one     = apd.New(1, 0)
+	hundred = apd.New(100, 0)
+)
 
 // binary adapts a two-operand apd.Context method to an operation.
 func binary(f func(ctx *apd.Context, d, x, y *apd.Decimal) (apd.Condition, error)) func(*Calculator, []*apd.Decimal) (*apd.Decimal, apd.Condition, error) {
@@ -29,22 +28,37 @@ var (
 	divide   = binary((*apd.Context).Quo)
 )
 
-// power computes x^y. Two cases are rejected before calling apd: a zero base
-// with a negative exponent, which apd answers with Infinity and no condition,
-// and exponents beyond maxPowerExponent, which would only waste CPU.
+// power computes x^y. A zero base with a negative exponent is rejected before
+// calling apd, which answers it with Infinity and no condition. Large
+// exponents need no limit: apd's cost grows with log(y).
+//
+// Results beyond the working exponent range come back as overflow or
+// underflow, but apd doesn't always pick the right one (0.5^-1E+15 is
+// reported as underflow), so the math decides: if the true result tends to 0
+// it rounds to 0 like any other tiny result; otherwise it is out of range.
 func power(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, error) {
 	x, y := args[0], args[1]
 	if x.IsZero() && y.Negative && !y.IsZero() {
 		return nil, 0, fmt.Errorf("%w: zero raised to a negative power", ErrDivisionByZero)
 	}
-	var absY apd.Decimal
-	absY.Abs(y)
-	if absY.Cmp(maxPowerExponent) > 0 {
-		return nil, 0, fmt.Errorf("%w: exponent magnitude must be at most %d", ErrOutOfRange, maxExponent)
-	}
 	d := new(apd.Decimal)
 	cond, err := c.ctx.Pow(d, x, y)
+	if cond.Overflow() || cond.Underflow() {
+		if tendsToZero(x, y) {
+			return new(apd.Decimal), apd.Inexact | apd.Rounded, nil
+		}
+		return nil, 0, fmt.Errorf("%w: power", ErrOutOfRange)
+	}
 	return d, cond, err
+}
+
+// tendsToZero reports whether |x^y| < 1, i.e. |x| < 1 with y > 0 or |x| > 1
+// with y < 0.
+func tendsToZero(x, y *apd.Decimal) bool {
+	var absX apd.Decimal
+	absX.Abs(x)
+	cmp := absX.Cmp(one)
+	return (cmp < 0 && y.Sign() > 0) || (cmp > 0 && y.Sign() < 0)
 }
 
 // sqrt computes √x. Negative inputs are rejected up front with a clearer
@@ -66,20 +80,15 @@ func percent(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, e
 	return d, cond, err
 }
 
-// percentOf computes base × rate / 100 ("rate% of base"). The conditions of
-// both steps are combined, so the result is inexact if either step rounded.
-//
-// The product is computed with two extra digits of exponent headroom: dividing
-// by 100 lowers the exponent by 2, so a product just above the range may still
-// give an in-range result. The headroom lives in a local copy of the context.
+// percentOf computes base × rate / 100 ("rate% of base"). Dividing the rate
+// first is exact (it only shifts the decimal point), so the product is the
+// only step that can round. The conditions of both steps are combined.
 func percentOf(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, error) {
-	wide := c.ctx
-	wide.MaxExponent += 2
-	d := new(apd.Decimal)
-	cond, err := wide.Mul(d, args[0], args[1])
+	rate, cond, err := percent(c, args[1:])
 	if err != nil {
-		return d, cond, err
+		return rate, cond, err
 	}
-	cond2, err := c.ctx.Quo(d, d, hundred)
-	return d, cond | cond2, err
+	d := new(apd.Decimal)
+	mulCond, err := c.ctx.Mul(d, args[0], rate)
+	return d, cond | mulCond, err
 }

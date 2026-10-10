@@ -33,11 +33,23 @@ type Result struct {
 	Exact bool   // false if the value may have been rounded
 }
 
-// Precision is the number of significant digits for operands and results.
-// Results that fit are exact; anything longer is rounded half-even.
-const Precision = 16
+// Number format shared by operands and results: plain decimals (no exponent
+// notation) with at most Precision significant digits, at most Precision
+// integer digits (so every number is below 10^16 in magnitude) and at most
+// MaxDecimalPlaces decimal places. Results that don't fit are rounded
+// half-even, or rejected as out of range if they are too large.
+const (
+	Precision        = 16
+	MaxDecimalPlaces = 16
+)
 
-// Exponent range for operands and results; values outside it are out of range.
+// workingPrecision is the precision used while computing. It holds any sum or
+// product of two operands exactly (at most 2×16 digits plus a carry), so those
+// results are rounded only once, to the number format.
+const workingPrecision = 2*Precision + 2
+
+// Exponent range while computing. Operands in the number format keep every
+// operation but power well inside it; power handles leaving it itself.
 const (
 	minExponent = -9999
 	maxExponent = 9999
@@ -46,7 +58,7 @@ const (
 // newContext returns the arithmetic context shared by every operation.
 func newContext() apd.Context {
 	return apd.Context{
-		Precision:   Precision,
+		Precision:   workingPrecision,
 		Rounding:    apd.RoundHalfEven,
 		MinExponent: minExponent,
 		MaxExponent: maxExponent,
@@ -113,7 +125,11 @@ func (c *Calculator) Calculate(op Operation, operands []string) (Result, error) 
 	if err := domainError(op, d, cond, err); err != nil {
 		return Result{}, err
 	}
-	return Result{Value: formatResult(d), Exact: !cond.Inexact()}, nil
+	roundCond, err := roundResult(&c.ctx, d)
+	if err != nil {
+		return Result{}, fmt.Errorf("%w: %s", err, op)
+	}
+	return Result{Value: formatResult(d), Exact: !(cond | roundCond).Inexact()}, nil
 }
 
 // domainError maps the outcome of an apd computation to a domain error, or
@@ -125,11 +141,6 @@ func domainError(op Operation, d *apd.Decimal, cond apd.Condition, err error) er
 		return fmt.Errorf("%w: %s", ErrDivisionByZero, op)
 	case cond.InvalidOperation():
 		return fmt.Errorf("%w: %s", ErrUndefined, op)
-	case cond.Overflow() || cond.Underflow() || cond.Subnormal():
-		// Subnormal results are below the exponent range even when exact
-		// (apd only raises Underflow if they were also rounded); they would
-		// not be accepted back as operands, so they are out of range too.
-		return fmt.Errorf("%w: %s", ErrOutOfRange, op)
 	case err != nil:
 		if isDomainError(err) {
 			return err

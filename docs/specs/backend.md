@@ -89,46 +89,45 @@ var registry = map[Operation]operation{
 3. Parse each operand (§2.4), or return `*OperandError`.
 4. Call `apply`.
 5. Map the apd condition or error to a domain error (§2.6).
-6. Format the result (§2.5).
+6. Round the result to the number format and format it (§2.5).
 
 Adding an operation means adding one function and one registry entry.
 
-### 2.3 Precision model
+### 2.3 Number format and precision
 
-One `apd.Context`, shared by every operation:
+Operands and results share one number format: **plain decimals** (no exponent notation) with
 
-```go
-const Precision = 16 // significant digits; the single knob for operands, results and display
+- at most `Precision` = **16 significant digits**,
+- at most **16 integer digits**, so every number is below 10¹⁶ in magnitude,
+- at most `MaxDecimalPlaces` = **16 decimal places**.
 
-ctx := apd.Context{Precision: Precision, Rounding: apd.RoundHalfEven, MaxExponent: 9999, MinExponent: -9999,
-    Traps: apd.Overflow | apd.Underflow | apd.DivisionByZero | apd.DivisionUndefined | apd.InvalidOperation}
-```
+This is a 16-digit pocket calculator's range. Because results always satisfy the same rules as operands, any result can be sent back as the next operand.
 
-- **Exact whenever the result fits in 16 significant digits.** That covers every add, subtract, multiply, percent and percent_of whose result has 16 digits or fewer (dividing by 100 only shifts the decimal point), and any divide, sqrt or power that happens to terminate (`1/4`, `√16`, `2^-3`).
-- **Otherwise correctly rounded** (half-even) to 16 significant digits: `1/3`, `√2`, `2^64`, and products whose result has more than 16 digits.
-- `Exact = !condition.Inexact()`. This is conservative: apd computes fractional powers with exp/ln, so `4 ^ 0.5` reports `exact: false` even though the result is 2. `exact: false` means "may have been rounded".
+Computation uses a single `apd.Context` with a **working precision of 34 digits** (`2 × Precision + 2`). That holds any sum or product of two operands exactly, so those results are rounded only once, to the number format (§2.5). Its exponent range (±9999) only matters for `power`.
+
+- **A result is exact whenever it fits the format**: `0.1 + 0.2 = 0.3`, `1/4`, `√16`, `2^-3`, `99999999 × 99999999 = 9999999800000001`.
+- **Otherwise it's correctly rounded** (half-even) to 16 significant digits and 16 decimal places: `1/3 → 0.3333333333333333`, `1/3000 → 0.0003333333333333`, `√2 → 1.414213562373095`. Results too small for the format round to `0` (`0.0000000001² → 0`), as on a physical calculator.
+- **Results of 10¹⁶ or more are `ErrOutOfRange`** (`2^64`, `9999999999999999 + 1`).
+- `Exact = !condition.Inexact()`, combining the conditions of the operation and of the final rounding. This is conservative: apd computes fractional powers with exp/ln, so `4 ^ 0.5` reports `exact: false` even though the result is 2. `exact: false` means "may have been rounded".
 
 ### 2.4 Parsing operands (`decimal.go`)
 
-`parseOperand(s string) (*apd.Decimal, error)` accepts the decimal syntax of the General Decimal Arithmetic spec as implemented by `apd.NewFromString`: optional sign, digits with an optional `.`, optional exponent. Examples: `"42"`, `"-0.5"`, `".5"`, `"1.5E+40"`.
+`parseOperand(index int, s string) (*apd.Decimal, error)` accepts a plain decimal: optional sign, digits with an optional `.`. Examples: `"42"`, `"-0.5"`, `".5"`, `"1.000"`.
 
 It rejects:
 - empty strings, or strings longer than **64 characters**
-- anything `apd` can't parse (`"abc"`, `"1e"`, `" 1"`, `"1_000"`)
+- exponent notation (`"1E+5"`, `"1e-3"`)
+- anything `apd` can't parse (`"abc"`, `" 1"`, `"1_000"`)
 - non-finite values: `NaN` and `Infinity` parse successfully in apd and are rejected explicitly
-- more than **`Precision` (16) significant digits**, counted after removing trailing zeros, so `"1.000"` and `"1E+20"` are fine. Inputs are rejected, never silently rounded.
-- an adjusted exponent outside `[-9999, 9999]`
+- values outside the number format (§2.3), checked after trailing zeros are removed (so `"1.000"` is fine): more than 16 significant digits, decimal places or integer digits. Inputs are rejected, never silently rounded.
 
 Every rejection returns `&OperandError{Index: i, Value: s, Reason: "..."}`, which wraps `ErrInvalidNumber`.
 
-### 2.5 Formatting results (`decimal.go`)
+### 2.5 Rounding and formatting results (`decimal.go`)
 
-`formatResult(d *apd.Decimal) string`:
-1. `Reduce`: remove trailing zeros (`3.00 → 3`, `0.2500 → 0.25`).
-2. Turn negative zero into `"0"`.
-3. If the adjusted exponent is in `[-7, Precision)`, use plain notation (`d.Text('f')`), e.g. `"1000"`, `"0.125"`, `"1234567890123456"`. Otherwise use scientific notation (`d.String()`), e.g. `"1.844674407370955E+19"`, `"1.5E-8"`. Values with more than 16 integer digits are never written out in full, because padding with zeros would suggest precision the value doesn't have.
+`roundResult(ctx, d) (apd.Condition, error)` rounds the computed value in place to the number format with a single `Quantize`. The target exponent is `max(adjustedExponent − 15, −16)`: 16 significant digits, but no more than 16 decimal places. It returns `ErrOutOfRange` if the rounded value has more than 16 integer digits; this includes a rounding carry such as `9999999999999999.5 → 10¹⁶`.
 
-A formatted result never has more than 16 significant digits and always satisfies §2.4, so the frontend can send any result back as the next operand.
+`formatResult(d) string` turns negative zero into `"0"`, removes trailing zeros (`3.00 → 3`, `0.2500 → 0.25`) and writes plain notation (`d.Text('f')`). The longest possible value is 19 characters (`-0.1234567890123456`).
 
 ### 2.6 Errors (`errors.go`)
 
@@ -157,17 +156,23 @@ Errors are wrapped with `fmt.Errorf("%w: ...")` so their messages are specific, 
 | `0 ^ 0`                     | `ErrUndefined`                            | invalid operation under the GDA spec          |
 | `√(-x)`                     | `ErrUndefined` ("square root of a negative number") | checked before calling apd          |
 | `(-8) ^ 0.5`                | `ErrUndefined`                            | invalid operation                             |
-| `1E+9000 × 1E+9000`         | `ErrOutOfRange`                           | overflow                                      |
-| `1E-9000 × 1E-9000`         | `ErrOutOfRange`                           | underflow (not silently 0)                    |
-| `x ^ y` with \|y\| > 9999   | `ErrOutOfRange`                           | checked first; bounds CPU use                 |
-| `2^64`                      | `1.844674407370955E+19`, inexact          |                                               |
+| `2^64`, `9999999999999999 + 1` | `ErrOutOfRange`                      | 10¹⁶ or more                                  |
+| `9999999999999999 + 0.5`    | `ErrOutOfRange`                           | rounding carries into a 17th digit            |
+| `0.0000000001²`             | `0`, inexact                              | too small for 16 decimal places               |
+| `0.5 ^ 9999999999999999`    | `0`, inexact                              | apd overflows/underflows; the math decides (§2.8) |
+| `2 ^ 9999999999999999`      | `ErrOutOfRange`                           | likewise                                      |
+| `1E+5` as an operand        | `ErrInvalidNumber`                        | no exponent notation                          |
 | `2.50 - 2.50`               | `0`                                       | reduced                                       |
 | `-0 × 5`                    | `0`                                       | negative zero normalized                      |
 | `1 / 3`                     | `0.3333333333333333` (16 digits), inexact |                                               |
 | `percent(50)`               | `0.5`, exact                              |                                               |
 | `percent_of(200, 10)`       | `20`, exact                               | "10% of 200"                                  |
 | `percent_of(-80, 12.5)`     | `-10`, exact                              | negative values and fractional rates are fine |
-| `percent(1E-9999)`          | `ErrOutOfRange`                           | underflow                                     |
+| `percent(0.0000000000000001)` | `0`, inexact                            | too small for 16 decimal places               |
+
+### 2.8 `power` beyond the working range
+
+apd's cost for `x^y` grows with log(y), so no exponent limit is needed. When the result leaves the working exponent range, apd reports overflow or underflow, but not always the right one: `0.5^-9999999999999999` is reported as underflow. So the math decides. If |x| < 1 with y > 0, or |x| > 1 with y < 0, the true result tends to 0 and rounds to `0` (inexact) like any other tiny result; otherwise it's `ErrOutOfRange`.
 
 ## 3. HTTP API (`internal/api`)
 
@@ -189,7 +194,7 @@ Request (`Content-Type: application/json`, maximum 4 KiB):
 ```
 
 - `operation` (string, required) is one of `add`, `subtract`, `multiply`, `divide`, `power`, `sqrt`, `percent`, `percent_of`.
-- `operands` (array, required) has 2 items, or 1 for `sqrt` and `percent`. Each item should be a **decimal string**. JSON numbers are also accepted for convenience: the custom `operand` type's `UnmarshalJSON` keeps the number's original text, so it's never converted to a float. `power` operands are `[base, exponent]`; `percent_of` operands are `[base, rate]`.
+- `operands` (array, required) has 2 items, or 1 for `sqrt` and `percent`. Each item should be a **decimal string** in the number format (§2.3). JSON numbers are also accepted for convenience: the custom `operand` type's `UnmarshalJSON` keeps the number's original text, so it's never converted to a float. A number written in exponent form (`1e5`) is rejected by the calculator like any other operand. `power` operands are `[base, exponent]`; `percent_of` operands are `[base, rate]`.
 - Unknown fields, trailing data after the JSON object, and `null` values are rejected.
 
 Success, `200 OK`:

@@ -32,10 +32,10 @@ func TestCalculateSuccess(t *testing.T) {
 			want: `{"operation":"add","operands":["0.1","0.2"],"result":"0.3","exact":true}`,
 		},
 		{
-			name: "number beyond float64",
-			body: `{"operation":"sqrt","operands":[1e400]}`,
-			res:  calculator.Result{Value: "1E+200", Exact: true},
-			want: `{"operation":"sqrt","operands":["1e400"],"result":"1E+200","exact":true}`,
+			name: "number beyond float64 precision",
+			body: `{"operation":"sqrt","operands":[1234567890.123456]}`,
+			res:  calculator.Result{Value: "35136.41828644957", Exact: false},
+			want: `{"operation":"sqrt","operands":["1234567890.123456"],"result":"35136.41828644957","exact":false}`,
 		},
 	}
 	for _, tt := range tests {

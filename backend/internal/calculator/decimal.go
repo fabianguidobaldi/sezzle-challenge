@@ -2,6 +2,7 @@ package calculator
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/cockroachdb/apd/v3"
 )
@@ -9,13 +10,9 @@ import (
 // maxOperandLength bounds the raw input size before any parsing work is done.
 const maxOperandLength = 64
 
-// Plain notation is used for adjusted exponents in [plainMinExponent, Precision);
-// anything outside uses scientific notation.
-const plainMinExponent = -7
-
 // parseOperand converts the operand at the given index into a decimal.
-// Operands are rejected, never rounded: anything that doesn't fit the
-// calculator's precision or exponent range is an *OperandError.
+// Operands must already be in the number format (see Precision); they are
+// rejected, never rounded. Every error is an *OperandError.
 func parseOperand(index int, s string) (*apd.Decimal, error) {
 	reject := func(reason string) error {
 		return &OperandError{Index: index, Value: s, Reason: reason}
@@ -26,6 +23,8 @@ func parseOperand(index int, s string) (*apd.Decimal, error) {
 		return nil, reject("must not be empty")
 	case len(s) > maxOperandLength:
 		return nil, reject(fmt.Sprintf("must be at most %d characters", maxOperandLength))
+	case strings.ContainsAny(s, "eE"):
+		return nil, reject("must be a plain decimal number, without an exponent")
 	}
 
 	d, _, err := apd.NewFromString(s)
@@ -36,31 +35,51 @@ func parseOperand(index int, s string) (*apd.Decimal, error) {
 		return nil, reject("must be a finite number")
 	}
 
-	// Trailing zeros are not significant: "1.000" and "1E+20" have one digit.
+	// Trailing zeros are not significant: "1.000" has one digit.
 	d.Reduce(d)
-	if d.NumDigits() > Precision {
+	switch {
+	case d.NumDigits() > Precision:
 		return nil, reject(fmt.Sprintf("must have at most %d significant digits", Precision))
-	}
-	if adj := adjustedExponent(d); adj < minExponent || adj > maxExponent {
-		return nil, reject(fmt.Sprintf("exponent must be between %d and %d", minExponent, maxExponent))
+	case d.Exponent < -MaxDecimalPlaces:
+		return nil, reject(fmt.Sprintf("must have at most %d decimal places", MaxDecimalPlaces))
+	case adjustedExponent(d) >= Precision:
+		return nil, reject(fmt.Sprintf("must have at most %d integer digits", Precision))
 	}
 	return d, nil
 }
 
-// formatResult renders d as a canonical decimal string: trailing zeros
-// removed, no negative zero, plain notation for everyday magnitudes and
-// scientific notation otherwise. Integers beyond Precision digits are never
-// written out in full, since the padding zeros would imply false precision.
+// roundResult rounds d in place to the number format: at most Precision
+// significant digits and MaxDecimalPlaces decimal places, so values too small
+// for the format become 0. It returns ErrOutOfRange if the rounded value has
+// more than Precision integer digits.
+func roundResult(ctx *apd.Context, d *apd.Decimal) (apd.Condition, error) {
+	if d.IsZero() {
+		return 0, nil
+	}
+	var cond apd.Condition
+	exp := max(adjustedExponent(d)-(Precision-1), -MaxDecimalPlaces)
+	if int64(d.Exponent) < exp {
+		var err error
+		if cond, err = ctx.Quantize(d, d, int32(exp)); err != nil {
+			return cond, err
+		}
+	}
+	// Rounding can carry into a new digit (9999999999999999.5 → 1E+16).
+	if !d.IsZero() && adjustedExponent(d) >= Precision {
+		return cond, ErrOutOfRange
+	}
+	return cond, nil
+}
+
+// formatResult renders a value in the number format as a canonical plain
+// decimal string: trailing zeros removed and no negative zero.
 func formatResult(d *apd.Decimal) string {
 	if d.IsZero() {
 		return "0"
 	}
 	var r apd.Decimal
 	r.Reduce(d)
-	if adj := adjustedExponent(&r); adj >= plainMinExponent && adj < Precision {
-		return r.Text('f')
-	}
-	return r.String()
+	return r.Text('f')
 }
 
 // adjustedExponent is the exponent of d's most significant digit

@@ -21,54 +21,67 @@ func TestCalculate(t *testing.T) {
 		{Add, []string{"2", "3"}, "5", true},
 		{Add, []string{"0.1", "0.2"}, "0.3", true},
 		{Add, []string{"-5", "2.5"}, "-2.5", true},
-		{Add, []string{"1E+20", "1"}, "1E+20", false},
-		{Add, []string{"9999999999999999", "1"}, "1E+16", true},
+		{Add, []string{"0.0000000000000001", "0.0000000000000001"}, "0.0000000000000002", true},
+		{Add, []string{"9999999999999998", "1"}, "9999999999999999", true},
+		{Add, []string{"1234567890.123456", "0.0000000000000001"}, "1234567890.123456", false},
 		// subtract
 		{Subtract, []string{"10", "4"}, "6", true},
 		{Subtract, []string{"2.50", "2.50"}, "0", true},
 		{Subtract, []string{"-1", "-1.25"}, "0.25", true},
-		{Subtract, []string{"1E+15", "0.1"}, "999999999999999.9", true},
+		{Subtract, []string{"999999999999999", "0.1"}, "999999999999998.9", true},
+		{Subtract, []string{"9999999999999999", "0.5"}, "9999999999999998", false}, // ties to even
 		// multiply
 		{Multiply, []string{"6", "7"}, "42", true},
 		{Multiply, []string{"-0", "5"}, "0", true},
 		{Multiply, []string{"-1.5", "4"}, "-6", true},
 		{Multiply, []string{"0.1", "0.1"}, "0.01", true},
 		{Multiply, []string{"1234567890123456", "3"}, "3703703670370368", true},
-		{Multiply, []string{"1234567890123456", "1234567890123456"}, "1.524157875323882E+30", false},
+		{Multiply, []string{"99999999", "99999999"}, "9999999800000001", true},
+		{Multiply, []string{"1.000000000000001", "1.000000000000001"}, "1.000000000000002", false},
+		{Multiply, []string{"0.0000000001", "0.0000000001"}, "0", false}, // too small: rounds to 0
+		{Multiply, []string{"1.5", "0.0000000000000001"}, "0.0000000000000002", false},
+		{Multiply, []string{"0.5", "0.0000000000000001"}, "0", false}, // tie at the last place: to even
 		// divide
 		{Divide, []string{"1", "4"}, "0.25", true},
 		{Divide, []string{"1", "3"}, "0.3333333333333333", false},
 		{Divide, []string{"-2", "3"}, "-0.6666666666666667", false},
 		{Divide, []string{"-10", "-4"}, "2.5", true},
 		{Divide, []string{"0", "5"}, "0", true},
+		{Divide, []string{"1", "3000"}, "0.0003333333333333", false}, // limited by decimal places
 		// power
 		{Power, []string{"2", "10"}, "1024", true},
-		{Power, []string{"2", "64"}, "1.844674407370955E+19", false},
+		{Power, []string{"2", "53"}, "9007199254740992", true},
 		{Power, []string{"2", "-3"}, "0.125", true},
 		{Power, []string{"-2", "3"}, "-8", true},
 		{Power, []string{"4", "0.5"}, "2", false}, // exp/ln path: conservative
+		{Power, []string{"2", "0.5"}, "1.414213562373095", false},
 		{Power, []string{"5", "0"}, "1", true},
 		{Power, []string{"0", "5"}, "0", true},
-		{Power, []string{"1", "9999"}, "1", true},
-		{Power, []string{"1", "-9999"}, "1", true},
-		{Power, []string{"10", "9999"}, "1E+9999", true},
-		{Power, []string{"10", "-9999"}, "1E-9999", true},
+		{Power, []string{"10", "15"}, "1000000000000000", true},
+		{Power, []string{"0.1", "16"}, "0.0000000000000001", true},
+		{Power, []string{"0.1", "17"}, "0", false},
+		{Power, []string{"1", "9999999999999999"}, "1", true},
+		{Power, []string{"0.5", "9999999999999999"}, "0", false},  // beyond the working range, tends to 0
+		{Power, []string{"-0.5", "9999999999999999"}, "0", false}, // likewise with a negative base
+		{Power, []string{"2", "-9999999999999999"}, "0", false},   // |x| > 1, y < 0
 		// sqrt
 		{Sqrt, []string{"16"}, "4", true},
 		{Sqrt, []string{"0.25"}, "0.5", true},
 		{Sqrt, []string{"2"}, "1.414213562373095", false},
 		{Sqrt, []string{"0"}, "0", true},
 		{Sqrt, []string{"-0"}, "0", true},
+		{Sqrt, []string{"0.0000000000000001"}, "0.00000001", true},
 		// percent
 		{Percent, []string{"50"}, "0.5", true},
 		{Percent, []string{"-12.5"}, "-0.125", true},
 		{Percent, []string{"0"}, "0", true},
-		{Percent, []string{"1E+9999"}, "1E+9997", true},
+		{Percent, []string{"9999999999999999"}, "99999999999999.99", true},
+		{Percent, []string{"0.0000000000000001"}, "0", false},
 		// percent_of
 		{PercentOf, []string{"200", "10"}, "20", true},
 		{PercentOf, []string{"-80", "12.5"}, "-10", true},
-		{PercentOf, []string{"1234567890123456", "1234567890123456"}, "1.524157875323882E+28", false},
-		{PercentOf, []string{"1E+5000", "1E+5001"}, "1E+9999", true}, // product briefly above the range
+		{PercentOf, []string{"33.33", "33.33"}, "11.108889", true},
+		{PercentOf, []string{"9999999999999999", "100"}, "9999999999999999", true},
 	}
 	c := New()
 	for _, tt := range tests {
@@ -104,20 +117,19 @@ func TestCalculateErrors(t *testing.T) {
 		{Power, []string{"0", "-0.5"}, ErrDivisionByZero, "negative power"},
 		{Power, []string{"0", "0"}, ErrUndefined, "power"},
 		{Power, []string{"-8", "0.5"}, ErrUndefined, "power"},
-		{Power, []string{"2", "10000"}, ErrOutOfRange, "at most 9999"},
-		{Power, []string{"1", "-10000"}, ErrOutOfRange, "at most 9999"},
-		{Power, []string{"11", "9999"}, ErrOutOfRange, "power"},
-		{Power, []string{"11", "-9999"}, ErrOutOfRange, "power"},
 		{Sqrt, []string{"-4"}, ErrUndefined, "square root of a negative number"},
-		{Sqrt, []string{"-1E-9999"}, ErrUndefined, "square root of a negative number"},
-		{Multiply, []string{"1E+9000", "1E+9000"}, ErrOutOfRange, "multiply"},
-		{Multiply, []string{"1E-9000", "1E-9000"}, ErrOutOfRange, "multiply"},
-		{Multiply, []string{"1E-9999", "0.1"}, ErrOutOfRange, "multiply"}, // exact but subnormal
-		{Add, []string{"9.999999999999999E+9999", "9.999999999999999E+9999"}, ErrOutOfRange, "add"},
-		{Divide, []string{"1E-9999", "3"}, ErrOutOfRange, "divide"},
-		{Percent, []string{"1E-9999"}, ErrOutOfRange, "percent"},
-		{PercentOf, []string{"1E+9999", "1E+3"}, ErrOutOfRange, "percent_of"},
-		{PercentOf, []string{"1E-9999", "1"}, ErrOutOfRange, "percent_of"},
+		{Sqrt, []string{"-0.0000000000000001"}, ErrUndefined, "square root of a negative number"},
+		// Results of 10^16 or more don't fit in 16 integer digits.
+		{Add, []string{"9999999999999999", "1"}, ErrOutOfRange, "add"},
+		{Add, []string{"9999999999999999", "0.5"}, ErrOutOfRange, "add"}, // rounding carries to 10^16
+		{Subtract, []string{"-9999999999999999", "1"}, ErrOutOfRange, "subtract"},
+		{Multiply, []string{"100000000", "100000000"}, ErrOutOfRange, "multiply"},
+		{Divide, []string{"1", "0.0000000000000001"}, ErrOutOfRange, "divide"},
+		{Power, []string{"2", "64"}, ErrOutOfRange, "power"},
+		{Power, []string{"10", "16"}, ErrOutOfRange, "power"},
+		{Power, []string{"2", "9999999999999999"}, ErrOutOfRange, "power"},    // beyond the working range
+		{Power, []string{"0.5", "-9999999999999999"}, ErrOutOfRange, "power"}, // apd calls this underflow
+		{PercentOf, []string{"1234567890123456", "1234567890123456"}, ErrOutOfRange, "percent_of"},
 	}
 	c := New()
 	for _, tt := range tests {
@@ -200,7 +212,7 @@ func TestCalculateConcurrent(t *testing.T) {
 	}{
 		{Add, []string{"0.1", "0.2"}, "0.3"},
 		{Divide, []string{"1", "3"}, "0.3333333333333333"},
-		{Power, []string{"2", "64"}, "1.844674407370955E+19"},
+		{Power, []string{"2", "53"}, "9007199254740992"},
 		{Sqrt, []string{"2"}, "1.414213562373095"},
 		{PercentOf, []string{"200", "10"}, "20"},
 	}

@@ -21,7 +21,7 @@ func TestOperandUnmarshalJSON(t *testing.T) {
 		{`"1"`, "1"},
 		{`0.1`, "0.1"},
 		{`-7`, "-7"},
-		{`1e400`, "1e400"}, // beyond float64: kept as text
+		{`1e400`, "1e400"}, // beyond float64: kept as text; the calculator rejects it
 		{`12345678901234567890`, "12345678901234567890"},
 		{`2.50`, "2.50"},
 	}
