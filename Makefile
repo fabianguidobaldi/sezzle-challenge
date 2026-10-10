@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help backend-dev backend-test backend-lint \
-	frontend-install frontend-dev frontend-test frontend-lint check up down
+	frontend-install frontend-dev frontend-test frontend-lint check build up down
 
 BACKEND := backend
 FRONTEND := frontend
@@ -35,6 +35,9 @@ frontend-lint: ## Lint and type-check the frontend
 	cd $(FRONTEND) && npm run lint && npm run typecheck
 
 check: backend-lint backend-test frontend-lint frontend-test ## Lint and test both projects
+
+build: ## Build the Docker images (backend and frontend)
+	docker compose build
 
 up: ## Build and run the full stack with Docker Compose on http://localhost:8080
 	docker compose up --build
