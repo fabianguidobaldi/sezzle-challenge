@@ -2,6 +2,7 @@
 .PHONY: help backend-run backend-test backend-cover backend-lint backend-docker
 
 BACKEND := backend
+COVERAGE := coverage
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-16s %s\n", $$1, $$2}'
@@ -12,10 +13,12 @@ backend-run: ## Run the API on :8080
 backend-test: ## Run backend tests with the race detector
 	cd $(BACKEND) && go test -race ./...
 
-backend-cover: ## Backend coverage report (backend/coverage.out, backend/coverage.html)
-	cd $(BACKEND) && go test -race -coverprofile=coverage.out ./... && \
-		go tool cover -func=coverage.out | tail -1 && \
-		go tool cover -html=coverage.out -o coverage.html
+backend-cover: ## Backend coverage report in coverage/backend/ (profile, summary, HTML)
+	mkdir -p $(COVERAGE)/backend
+	cd $(BACKEND) && go test -race -coverprofile=../$(COVERAGE)/backend/coverage.out ./...
+	cd $(BACKEND) && go tool cover -func=../$(COVERAGE)/backend/coverage.out > ../$(COVERAGE)/backend/coverage.txt
+	cd $(BACKEND) && go tool cover -html=../$(COVERAGE)/backend/coverage.out -o ../$(COVERAGE)/backend/coverage.html
+	@tail -1 $(COVERAGE)/backend/coverage.txt
 
 backend-lint: ## Check formatting and run go vet
 	cd $(BACKEND) && test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)
