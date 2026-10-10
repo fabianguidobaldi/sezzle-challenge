@@ -739,7 +739,7 @@ func (c *Calculator) Calculate(op Operation, operands []string) (Result, error) 
         }</span>
         <span class="cov9" title="3275">roundCond, err := roundResult(&amp;c.ctx, d)
         if err != nil </span><span class="cov3" title="8">{
-                return Result{}, fmt.Errorf("%w: %s", err, op)
+                return Result{}, err
         }</span>
         <span class="cov9" title="3267">return Result{Value: formatResult(d), Exact: !(cond | roundCond).Inexact()}, nil</span>
 }
@@ -750,9 +750,9 @@ func (c *Calculator) Calculate(op Operation, operands []string) (Result, error) 
 func domainError(op Operation, d *apd.Decimal, cond apd.Condition, err error) error <span class="cov9" title="3288">{
         switch </span>{
         case cond.DivisionByZero() || cond.DivisionUndefined():<span class="cov2" title="3">
-                return fmt.Errorf("%w: %s", ErrDivisionByZero, op)</span>
+                return ErrDivisionByZero</span>
         case cond.InvalidOperation():<span class="cov1" title="2">
-                return fmt.Errorf("%w: %s", ErrUndefined, op)</span>
+                return ErrUndefined</span>
         case err != nil:<span class="cov3" title="7">
                 if isDomainError(err) </span><span class="cov2" title="6">{
                         return err
@@ -760,7 +760,7 @@ func domainError(op Operation, d *apd.Decimal, cond apd.Condition, err error) er
                 <span class="cov1" title="1">return fmt.Errorf("calculator: %s: %w", op, err)</span>
         case d.Form != apd.Finite:<span class="cov1" title="1">
                 // Safety net: apd can return Infinity or NaN without raising a condition.
-                return fmt.Errorf("%w: %s", ErrUndefined, op)</span>
+                return ErrUndefined</span>
         }
         <span class="cov9" title="3275">return nil</span>
 }
@@ -836,8 +836,8 @@ func parseOperand(index int, s string) (*apd.Decimal, error) <span class="cov9" 
 
 // roundResult rounds d in place to the number format: at most Precision
 // significant digits and MaxDecimalPlaces decimal places, so values too small
-// for the format become 0. It returns ErrOutOfRange if the rounded value has
-// more than Precision integer digits.
+// for the format become 0. It returns an ErrOutOfRange error if the rounded
+// value has more than Precision integer digits.
 func roundResult(ctx *apd.Context, d *apd.Decimal) (apd.Condition, error) <span class="cov8" title="3288">{
         if d.IsZero() </span><span class="cov3" title="11">{
                 return 0, nil
@@ -852,7 +852,7 @@ func roundResult(ctx *apd.Context, d *apd.Decimal) (apd.Condition, error) <span 
         }
         // Rounding can carry into a new digit (9999999999999999.5 → 1E+16).
         <span class="cov8" title="3277">if !d.IsZero() &amp;&amp; adjustedExponent(d) &gt;= Precision </span><span class="cov3" title="11">{
-                return cond, ErrOutOfRange
+                return cond, errTooLarge
         }</span>
         <span class="cov8" title="3266">return cond, nil</span>
 }
@@ -892,6 +892,10 @@ var (
         ErrUndefined        = errors.New("result is undefined")
         ErrOutOfRange       = errors.New("result out of range")
 )
+
+// errTooLarge is ErrOutOfRange for results that don't fit in Precision
+// integer digits.
+var errTooLarge = fmt.Errorf("%w: results must be less than 10^%d in magnitude", ErrOutOfRange, Precision)
 
 // OperandError reports an operand that is not an acceptable decimal number.
 // It wraps ErrInvalidNumber.
@@ -957,7 +961,7 @@ func power(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, err
                 if tendsToZero(x, y) </span><span class="cov2" title="3">{
                         return new(apd.Decimal), apd.Inexact | apd.Rounded, nil
                 }</span>
-                <span class="cov1" title="2">return nil, 0, fmt.Errorf("%w: power", ErrOutOfRange)</span>
+                <span class="cov1" title="2">return nil, 0, errTooLarge</span>
         }
         <span class="cov9" title="658">return d, cond, err</span>
 }

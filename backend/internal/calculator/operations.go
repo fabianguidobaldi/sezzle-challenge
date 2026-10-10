@@ -47,7 +47,7 @@ func power(c *Calculator, args []*apd.Decimal) (*apd.Decimal, apd.Condition, err
 		if tendsToZero(x, y) {
 			return new(apd.Decimal), apd.Inexact | apd.Rounded, nil
 		}
-		return nil, 0, fmt.Errorf("%w: power", ErrOutOfRange)
+		return nil, 0, errTooLarge
 	}
 	return d, cond, err
 }
