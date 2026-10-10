@@ -1,0 +1,360 @@
+/* Calculator styles: theme tokens, layout, display and keypad. No external assets (CSP: default-src 'self'). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: light dark;
+
+  --page-bg: #e6e9ef;
+  --card-bg: #ffffff;
+  --card-shadow: 0 20px 50px rgb(20 22 26 / 0.12), 0 2px 6px rgb(20 22 26 / 0.06);
+  --text: #14161a;
+  --muted: #545b69;
+  --error: #b42318;
+  --focus: #1d4ed8;
+  --claude: #c15f3c;
+
+  --key-digit-bg: #f1f3f6;
+  --key-digit-fg: #14161a;
+  --key-fn-bg: #dde1e8;
+  --key-fn-fg: #14161a;
+  --key-op-bg: #e0e7ff;
+  --key-op-fg: #3730a3;
+  --key-op-active-bg: #3730a3;
+  --key-op-active-fg: #ffffff;
+  --key-eq-bg: #4f46e5;
+  --key-eq-fg: #ffffff;
+
+  --radius-card: 28px;
+  --radius-key: 18px;
+  --gap: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page-bg: #0b0d12;
+    --card-bg: #161a22;
+    --card-shadow: 0 20px 50px rgb(0 0 0 / 0.5);
+    --text: #f3f4f6;
+    --muted: #a3abb9;
+    --error: #fca5a5;
+    --focus: #93c5fd;
+    --claude: #d97757;
+
+    --key-digit-bg: #252a35;
+    --key-digit-fg: #f3f4f6;
+    --key-fn-bg: #363c4b;
+    --key-fn-fg: #f3f4f6;
+    --key-op-bg: #2b2f5c;
+    --key-op-fg: #c7d2fe;
+    --key-op-active-bg: #c7d2fe;
+    --key-op-active-fg: #1e1b4b;
+    --key-eq-bg: #4f46e5;
+    --key-eq-fg: #ffffff;
+  }
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: var(--page-bg);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Card */
+
+.calculator {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: var(--card-bg);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+}
+
+/* Display */
+
+.display {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 4px;
+  min-height: 132px;
+  padding: 12px 6px 4px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.display__expression {
+  min-height: 1.5em;
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.display__expression--error {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.display__value {
+  display: block;
+  max-width: 100%;
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere; /* safety net: wrap rather than clip, never truncate */
+}
+
+/* Font steps by length; the 19-char maximum plus ≈ fits 288px (a 320px screen minus padding). */
+.display__value--xl {
+  font-size: 3.5rem;
+}
+
+.display__value--lg {
+  font-size: 2.625rem;
+}
+
+.display__value--md {
+  font-size: 2rem;
+}
+
+.display__value--sm {
+  font-size: 1.375rem;
+}
+
+.display__approx {
+  margin-right: 0.15em;
+  color: var(--muted);
+}
+
+/* Pending indicator: a thin bar along the top of the display while a request is in flight. */
+.display__pending {
+  position: absolute;
+  top: 0;
+  left: 6px;
+  right: 6px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--key-eq-bg);
+  opacity: 0;
+  transform-origin: right;
+  transition: opacity 150ms ease;
+}
+
+.display__pending--on {
+  opacity: 0.8;
+  animation: pending 1s ease-in-out infinite;
+}
+
+@keyframes pending {
+  0%,
+  100% {
+    transform: scaleX(0.15);
+  }
+  50% {
+    transform: scaleX(1);
+  }
+}
+
+/* Footer */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.footer__spark {
+  color: var(--claude);
+}
+
+/* Keypad */
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(56px, 1fr));
+  grid-auto-rows: minmax(56px, 1fr);
+  gap: var(--gap);
+  aspect-ratio: 4 / 6; /* keeps single keys roughly square */
+}
+
+.key {
+  min-width: 56px;
+  min-height: 56px;
+  border: 0;
+  border-radius: var(--radius-key);
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    transform 80ms ease,
+    filter 120ms ease;
+}
+
+.key:hover {
+  filter: brightness(0.96);
+}
+
+.key:active {
+  transform: scale(0.95);
+  filter: brightness(0.88);
+}
+
+.key:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.key--digit {
+  background: var(--key-digit-bg);
+  color: var(--key-digit-fg);
+}
+
+.key--function {
+  background: var(--key-fn-bg);
+  color: var(--key-fn-fg);
+  font-size: 1.25rem;
+}
+
+.key--operator {
+  background: var(--key-op-bg);
+  color: var(--key-op-fg);
+  font-size: 1.625rem;
+}
+
+.key--operator[aria-pressed='true'] {
+  background: var(--key-op-active-bg);
+  color: var(--key-op-active-fg);
+}
+
+.key--equals {
+  background: var(--key-eq-bg);
+  color: var(--key-eq-fg);
+  font-size: 1.75rem;
+}
+
+.key--wide {
+  grid-column: span 2;
+}
+
+.key--tall {
+  grid-row: span 2;
+}
+
+@media (prefers-color-scheme: dark) {
+  .key:hover {
+    filter: brightness(1.12);
+  }
+
+  .key:active {
+    filter: brightness(1.25);
+  }
+}
+
+/* Phones: the card fills the viewport, display on top, keypad takes the rest. */
+@media (max-width: 479.98px) {
+  #root {
+    padding: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .calculator {
+    max-width: none;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 16px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .display {
+    flex: 0 0 auto;
+  }
+
+  .keypad {
+    flex: 1 1 auto;
+    aspect-ratio: auto;
+  }
+}
+
+/* Short phones (e.g. 320×568): a shorter display and tighter gaps keep the
+   footer on screen without shrinking the 56px keys. */
+@media (max-width: 479.98px) and (max-height: 640px) {
+  .calculator {
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .display {
+    min-height: 96px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .key,
+  .display__pending {
+    transition: none;
+  }
+
+  .key:active {
+    transform: none;
+  }
+
+  .display__pending--on {
+    animation: none;
+  }
+}

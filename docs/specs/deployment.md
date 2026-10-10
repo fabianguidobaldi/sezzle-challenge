@@ -36,7 +36,7 @@ Multi-stage build:
 ### `nginx.conf`
 
 - `location /api/` and `location = /healthz`: `proxy_pass http://backend:8080`, forwarding `Host`, `X-Forwarded-For` and `X-Forwarded-Proto`.
-- `location /assets/`: Vite's hashed files, served with `Cache-Control: public, max-age=31536000, immutable`.
+- `location /assets/`: Vite's hashed files, served with `Cache-Control: public, max-age=31536000, immutable` (a missing asset is a 404, not the SPA). `Cache-Control` is chosen by a `map` on the path and set at server level, because an `add_header` inside a location would drop the security headers.
 - `location /`: `try_files $uri /index.html` (SPA fallback); `index.html` gets `Cache-Control: no-cache` so new deploys are picked up straight away.
 - `gzip on` for text, JS, CSS and JSON.
 - Basic security headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and a restrictive `Content-Security-Policy` (`default-src 'self'`).
@@ -45,7 +45,7 @@ Multi-stage build:
 
 | Service    | Build        | Ports         | Notes |
 | ---------- | ------------ | ------------- | ----- |
-| `backend`  | `./backend`  | none published | Reachable only on the compose network as `backend:8080`. Healthcheck: `["/server", "-healthcheck"]`. |
+| `backend`  | `./backend`  | none published | Reachable only on the compose network as `backend:8080`. Its healthcheck (`/server -healthcheck`) is defined in `backend/Dockerfile`, so it also works with plain `docker run`. |
 | `frontend` | `./frontend` | `8080:8080`   | `depends_on: backend (condition: service_healthy)`, so nginx starts only once the API is up. |
 
 Both services use `restart: unless-stopped`.
