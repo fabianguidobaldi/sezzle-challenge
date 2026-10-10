@@ -127,7 +127,7 @@ func (c *Calculator) Calculate(op Operation, operands []string) (Result, error) 
 	}
 	roundCond, err := roundResult(&c.ctx, d)
 	if err != nil {
-		return Result{}, fmt.Errorf("%w: %s", err, op)
+		return Result{}, err
 	}
 	return Result{Value: formatResult(d), Exact: !(cond | roundCond).Inexact()}, nil
 }
@@ -138,9 +138,9 @@ func (c *Calculator) Calculate(op Operation, operands []string) (Result, error) 
 func domainError(op Operation, d *apd.Decimal, cond apd.Condition, err error) error {
 	switch {
 	case cond.DivisionByZero() || cond.DivisionUndefined():
-		return fmt.Errorf("%w: %s", ErrDivisionByZero, op)
+		return ErrDivisionByZero
 	case cond.InvalidOperation():
-		return fmt.Errorf("%w: %s", ErrUndefined, op)
+		return ErrUndefined
 	case err != nil:
 		if isDomainError(err) {
 			return err
@@ -148,7 +148,7 @@ func domainError(op Operation, d *apd.Decimal, cond apd.Condition, err error) er
 		return fmt.Errorf("calculator: %s: %w", op, err)
 	case d.Form != apd.Finite:
 		// Safety net: apd can return Infinity or NaN without raising a condition.
-		return fmt.Errorf("%w: %s", ErrUndefined, op)
+		return ErrUndefined
 	}
 	return nil
 }

@@ -50,8 +50,8 @@ func parseOperand(index int, s string) (*apd.Decimal, error) {
 
 // roundResult rounds d in place to the number format: at most Precision
 // significant digits and MaxDecimalPlaces decimal places, so values too small
-// for the format become 0. It returns ErrOutOfRange if the rounded value has
-// more than Precision integer digits.
+// for the format become 0. It returns an ErrOutOfRange error if the rounded
+// value has more than Precision integer digits.
 func roundResult(ctx *apd.Context, d *apd.Decimal) (apd.Condition, error) {
 	if d.IsZero() {
 		return 0, nil
@@ -66,7 +66,7 @@ func roundResult(ctx *apd.Context, d *apd.Decimal) (apd.Condition, error) {
 	}
 	// Rounding can carry into a new digit (9999999999999999.5 → 1E+16).
 	if !d.IsZero() && adjustedExponent(d) >= Precision {
-		return cond, ErrOutOfRange
+		return cond, errTooLarge
 	}
 	return cond, nil
 }

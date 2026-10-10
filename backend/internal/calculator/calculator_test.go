@@ -110,26 +110,26 @@ func TestCalculateErrors(t *testing.T) {
 		{Add, nil, ErrOperandCount, "add expects 2 operands, got 0"},
 		{Sqrt, []string{"1", "2"}, ErrOperandCount, "sqrt expects 1 operand, got 2"},
 		{Percent, []string{}, ErrOperandCount, "percent expects 1 operand, got 0"},
-		{Divide, []string{"5", "0"}, ErrDivisionByZero, "divide"},
-		{Divide, []string{"-5", "0.0"}, ErrDivisionByZero, "divide"},
-		{Divide, []string{"0", "0"}, ErrDivisionByZero, "divide"},
+		{Divide, []string{"5", "0"}, ErrDivisionByZero, "division by zero"},
+		{Divide, []string{"-5", "0.0"}, ErrDivisionByZero, "division by zero"},
+		{Divide, []string{"0", "0"}, ErrDivisionByZero, "division by zero"},
 		{Power, []string{"0", "-1"}, ErrDivisionByZero, "negative power"},
 		{Power, []string{"0", "-0.5"}, ErrDivisionByZero, "negative power"},
-		{Power, []string{"0", "0"}, ErrUndefined, "power"},
-		{Power, []string{"-8", "0.5"}, ErrUndefined, "power"},
+		{Power, []string{"0", "0"}, ErrUndefined, "result is undefined"},
+		{Power, []string{"-8", "0.5"}, ErrUndefined, "result is undefined"},
 		{Sqrt, []string{"-4"}, ErrUndefined, "square root of a negative number"},
 		{Sqrt, []string{"-0.0000000000000001"}, ErrUndefined, "square root of a negative number"},
 		// Results of 10^16 or more don't fit in 16 integer digits.
-		{Add, []string{"9999999999999999", "1"}, ErrOutOfRange, "add"},
-		{Add, []string{"9999999999999999", "0.5"}, ErrOutOfRange, "add"}, // rounding carries to 10^16
-		{Subtract, []string{"-9999999999999999", "1"}, ErrOutOfRange, "subtract"},
-		{Multiply, []string{"100000000", "100000000"}, ErrOutOfRange, "multiply"},
-		{Divide, []string{"1", "0.0000000000000001"}, ErrOutOfRange, "divide"},
-		{Power, []string{"2", "64"}, ErrOutOfRange, "power"},
-		{Power, []string{"10", "16"}, ErrOutOfRange, "power"},
-		{Power, []string{"2", "9999999999999999"}, ErrOutOfRange, "power"},    // beyond the working range
-		{Power, []string{"0.5", "-9999999999999999"}, ErrOutOfRange, "power"}, // apd calls this underflow
-		{PercentOf, []string{"1234567890123456", "1234567890123456"}, ErrOutOfRange, "percent_of"},
+		{Add, []string{"9999999999999999", "1"}, ErrOutOfRange, "less than 10^16"},
+		{Add, []string{"9999999999999999", "0.5"}, ErrOutOfRange, "less than 10^16"}, // rounding carries to 10^16
+		{Subtract, []string{"-9999999999999999", "1"}, ErrOutOfRange, "less than 10^16"},
+		{Multiply, []string{"100000000", "100000000"}, ErrOutOfRange, "less than 10^16"},
+		{Divide, []string{"1", "0.0000000000000001"}, ErrOutOfRange, "less than 10^16"},
+		{Power, []string{"2", "64"}, ErrOutOfRange, "less than 10^16"},
+		{Power, []string{"10", "16"}, ErrOutOfRange, "less than 10^16"},
+		{Power, []string{"2", "9999999999999999"}, ErrOutOfRange, "less than 10^16"},    // beyond the working range
+		{Power, []string{"0.5", "-9999999999999999"}, ErrOutOfRange, "less than 10^16"}, // apd calls this underflow
+		{PercentOf, []string{"1234567890123456", "1234567890123456"}, ErrOutOfRange, "less than 10^16"},
 	}
 	c := New()
 	for _, tt := range tests {

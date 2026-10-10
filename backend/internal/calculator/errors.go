@@ -16,6 +16,10 @@ var (
 	ErrOutOfRange       = errors.New("result out of range")
 )
 
+// errTooLarge is ErrOutOfRange for results that don't fit in Precision
+// integer digits.
+var errTooLarge = fmt.Errorf("%w: results must be less than 10^%d in magnitude", ErrOutOfRange, Precision)
+
 // OperandError reports an operand that is not an acceptable decimal number.
 // It wraps ErrInvalidNumber.
 type OperandError struct {
