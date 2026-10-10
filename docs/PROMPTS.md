@@ -79,9 +79,7 @@ Claude also checked the app in a real browser (desktop and phone widths, and the
 
 ### Input
 
-> The Makefile and Dockerfiles are in place. Based on the requirements, we're missing setup instructions, API usage and examples, and the design rationale (this is probably in the specs already). Anything else you noticed that we need to implement?
-
-> Doesn't the curl look a bit "techy"? Not too friendly, to be honest, seeing them in the README.
+> Both Makefile and Dockerfile are in place. Based on the requirements, we're missing setup instructions, API usage and examples, and the design rationale (this is probably in the specs already). Anything else that we should include in the README?
 
 ### Outcome
 
@@ -97,7 +95,7 @@ Agreed decisions:
 
 ### Input
 
-> Let's do a final check. Compare the code and the requirements, and see if there's anything else missing.
+> Compare the project and the initial requirements as a final validation. Ensure instructions in the README are clear and accurate.
 
 ### Outcome
 
