@@ -69,6 +69,7 @@ describe('initialState', () => {
       pendingOp: null,
       phase: 'input',
       request: null,
+      queued: [],
       lastRequestId: 0,
       error: null,
     })
@@ -313,8 +314,43 @@ describe('in-flight requests', () => {
 
   it.each(
     parseKeys('5 . ± ⌫ + √ % =').map((action) => [action.type, action] as const),
-  )('ignores %s', (_, action) => {
-    expect(reducer(busy, action)).toBe(busy)
+  )('queues %s', (_, action) => {
+    expect(reducer(busy, action)).toEqual({ ...busy, queued: [action] })
+  })
+
+  it('replays queued keys once the response arrives', () => {
+    // '=' is typed while percent_of is still in flight.
+    const typed = press('200 + 10 % =')
+    expect(typed.requests).toEqual(['percent_of 200 10'])
+
+    const answered = reducer(typed.state, { type: 'CALC_SUCCESS', id: 1, result: '20', exact: true })
+    expect(answered.request).toMatchObject({ operation: 'add', operands: ['200', '20'] })
+    expect(answered.queued).toEqual([])
+  })
+
+  it('keeps queueing behind each new request', () => {
+    // Everything after '×' is typed while add is in flight.
+    const { state, requests } = press('2 + 3 × 4 + 1 =')
+    expect(requests).toEqual(['add 2 3'])
+
+    const first = reducer(state, { type: 'CALC_SUCCESS', id: 1, result: '5', exact: true })
+    expect(first.request).toMatchObject({ operation: 'multiply', operands: ['5', '4'] })
+    expect(first.queued).toEqual(parseKeys('1 ='))
+
+    const second = reducer(first, { type: 'CALC_SUCCESS', id: 2, result: '20', exact: true })
+    expect(second.request).toMatchObject({ operation: 'add', operands: ['20', '1'] })
+    expect(second.queued).toEqual([])
+  })
+
+  it('drops queued keys when the request fails', () => {
+    const { state } = press('1 ÷ 0 = 5')
+    const failed = reducer(state, { type: 'CALC_FAILURE', id: 1, message: "Can't divide by zero" })
+    expect(failed).toMatchObject({ phase: 'error', display: 'Error', queued: [] })
+  })
+
+  it('drops queued keys on CLEAR', () => {
+    const queued = press('2 + 3 = 5').state
+    expect(reducer(queued, { type: 'CLEAR' }).queued).toEqual([])
   })
 
   it('resets on CLEAR but keeps the id counter', () => {

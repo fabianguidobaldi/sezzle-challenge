@@ -3,7 +3,7 @@
 // hook performs it and dispatches CALC_SUCCESS or CALC_FAILURE.
 
 import type { Operation } from '../api/types'
-import type { Action, BinaryOp, Digit, KeyAction, ResultAction, State } from './types'
+import type { Action, BinaryOp, Digit, KeyAction, PendingRequest, ResultAction, State } from './types'
 
 /** The backend's number format (backend spec §2.3). */
 const MAX_DIGITS = 16
@@ -17,6 +17,7 @@ export const initialState: State = {
   pendingOp: null,
   phase: 'input',
   request: null,
+  queued: [],
   lastRequestId: 0,
   error: null,
 }
@@ -61,7 +62,8 @@ export function isBusy(state: State): boolean {
 
 function applyKey(state: State, action: KeyAction): State {
   if (action.type === 'CLEAR') return clear(state)
-  if (isBusy(state)) return state
+  // Keys typed faster than the API answers aren't lost: they run once it does.
+  if (isBusy(state)) return { ...state, queued: [...state.queued, action] }
   if (state.phase === 'error') {
     if (action.type !== 'DIGIT' && action.type !== 'DECIMAL') return state
     return applyKey(fresh(state), action)
@@ -102,17 +104,27 @@ function applyResult(state: State, action: ResultAction): State {
       pendingOp: null,
       phase: 'error',
       request: null,
+      queued: [], // what was typed after a failed step no longer makes sense
       error: action.message,
     }
   }
 
+  return replay(succeed(state, req, action), state.queued)
+}
+
+function succeed(state: State, req: PendingRequest, action: { result: string; exact: boolean }): State {
   const exact = action.exact && req.operandsExact
-  const base = { ...state, display: action.result, displayExact: exact, request: null }
+  const base = { ...state, display: action.result, displayExact: exact, request: null, queued: [] }
   if (req.unary) return { ...base, phase: 'result' }
   if (req.next) {
     return { ...base, accumulator: action.result, accumulatorExact: exact, pendingOp: req.next, phase: 'operator' }
   }
   return { ...base, accumulator: null, accumulatorExact: true, pendingOp: null, phase: 'result' }
+}
+
+/** Applies queued keys in order; once one starts a new request, the rest queue up again. */
+function replay(state: State, keys: KeyAction[]): State {
+  return keys.reduce(applyKey, state)
 }
 
 /** C clears the entry; AC (and any CLEAR while busy) resets everything. */

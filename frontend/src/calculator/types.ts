@@ -30,6 +30,7 @@ export interface State {
   pendingOp: BinaryOp | null
   phase: Phase
   request: PendingRequest | null // the in-flight calculation
+  queued: KeyAction[] // keys pressed while a request was in flight, replayed after it
   lastRequestId: number // ids increase with every request
   error: string | null // user-facing message
 }

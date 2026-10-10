@@ -83,6 +83,7 @@ interface State {
   pendingOp: BinaryOp | null;
   phase: Phase;
   request: PendingRequest | null; // an in-flight calculation
+  queued: KeyAction[];            // keys pressed during the request, replayed after it
   lastRequestId: number;          // ids increase with every request
   error: string | null;           // user-facing message
 }
@@ -104,7 +105,7 @@ API actions: `CALC_SUCCESS(id, result, exact)`, `CALC_FAILURE(id, message)`.
 
 ### 4.3 Transitions
 
-**While a request is in flight**, every user action is ignored except `CLEAR` (AC), which resets everything; the in-flight response is then dropped because its id no longer matches.
+**While a request is in flight**, user actions are **queued** (in `state.queued`) and replayed in order when the response arrives, so keys typed faster than the API answers aren't lost (`200+10%=` typed quickly still gives 220). Once a replayed key starts a new request, the remaining keys queue up behind it. A failed request drops the queue. `CLEAR` (AC) is never queued: it resets everything, including the queue, and the in-flight response is then dropped because its id no longer matches.
 
 | Action          | Behaviour |
 | --------------- | --------- |
@@ -194,7 +195,7 @@ Handled keys call `preventDefault()`. Keys pressed with Ctrl, Meta or Alt are ig
 - **Secondary line**: the pending expression (e.g. `12 ×`), or the error message in the error state.
 - **Main line**: the display value, exactly as typed or as returned by the backend. There's no client-side rounding or reformatting. A `≈` marker appears when `displayExact` is false.
 - **Long values**: values are plain decimals of at most 19 characters (e.g. `-0.1234567890123456`); there is no exponent notation. The font steps down in size by length so every value fits on a phone screen. Values are never truncated.
-- **While a request is in flight**: `aria-busy="true"` and a subtle pending indicator. Keys aren't disabled, to avoid flicker; the reducer ignores input instead.
+- **While a request is in flight**: `aria-busy="true"` and a subtle pending indicator. Keys aren't disabled, to avoid flicker; the reducer queues input instead.
 - The main line is an `<output aria-live="polite">`, so screen readers announce results.
 
 ### 6.3 Responsive and theming

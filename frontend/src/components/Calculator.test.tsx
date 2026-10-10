@@ -100,6 +100,16 @@ describe('Calculator', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('keeps keys typed faster than the API answers', async () => {
+    mockCalculations({ 'percent_of 200 10': { result: '20' }, 'add 200 20': { result: '220' } })
+    render(<Calculator />)
+
+    // No delay between keys: '=' arrives while percent_of is still in flight.
+    await userEvent.setup({ delay: null }).keyboard('200+10%=')
+
+    await waitFor(() => expect(value()).toHaveTextContent(/^220$/))
+  })
+
   it('works from the physical keyboard', async () => {
     mockCalculations({ 'add 2 3': { result: '5' }, 'multiply 5 4': { result: '20' } })
     render(<Calculator />)
