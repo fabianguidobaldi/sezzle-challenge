@@ -62,3 +62,17 @@ It generated also an Insomnia collection for manual API testing.
 Agreed decisions:
 
 - Plain decimals only, with no exponent notation: at most 16 significant digits, 16 integer digits and 16 decimal places. Tiny results round to `0`, and results of 10¹⁶ or more are out of range.
+
+## 4. Frontend implementation
+
+### Input
+
+> Same approach as before: generate a plan to implement the frontend in independent stages.
+
+> Go for it.
+
+### Outcome
+
+Claude saved a 6-stage plan in `docs/plans/frontend.md` and implemented it. Claude wrote stage 1 (scaffold, test setup and shared types) first, then three subagents built the API client, the calculator reducer and the presentational UI in parallel, while Claude wrote the hooks and wiring, and the nginx and Docker Compose setup. Each stage is one commit. Coverage is 100%.
+
+Claude also checked the app in a real browser (desktop and phone widths, and the Docker stack with no CSP errors) and found that keys typed during an in-flight request were lost. Those keys are now queued and replayed when the response arrives.
