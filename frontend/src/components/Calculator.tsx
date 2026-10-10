@@ -5,6 +5,7 @@ import { clearLabel, expression, isBusy } from '../calculator/reducer'
 import { useCalculator } from '../hooks/useCalculator'
 import { useKeyboard } from '../hooks/useKeyboard'
 import { Display } from './Display'
+import { Footer } from './Footer'
 import { Keypad } from './Keypad'
 
 export function Calculator() {
@@ -26,6 +27,7 @@ export function Calculator() {
         activeOp={state.phase === 'operator' ? state.pendingOp : null}
         onAction={press}
       />
+      <Footer />
     </main>
   )
 }

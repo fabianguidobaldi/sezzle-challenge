@@ -16,6 +16,7 @@
   --muted: #545b69;
   --error: #b42318;
   --focus: #1d4ed8;
+  --claude: #c15f3c;
 
   --key-digit-bg: #f1f3f6;
   --key-digit-fg: #14161a;
@@ -42,6 +43,7 @@
     --muted: #a3abb9;
     --error: #fca5a5;
     --focus: #93c5fd;
+    --claude: #d97757;
 
     --key-digit-bg: #252a35;
     --key-digit-fg: #f3f4f6;
@@ -197,6 +199,21 @@ body {
   }
 }
 
+/* Footer */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.footer__spark {
+  color: var(--claude);
+}
+
 /* Keypad */
 
 .keypad {
@@ -311,6 +328,19 @@ body {
   .keypad {
     flex: 1 1 auto;
     aspect-ratio: auto;
+  }
+}
+
+/* Short phones (e.g. 320×568): a shorter display and tighter gaps keep the
+   footer on screen without shrinking the 56px keys. */
+@media (max-width: 479.98px) and (max-height: 640px) {
+  .calculator {
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .display {
+    min-height: 96px;
   }
 }
 
