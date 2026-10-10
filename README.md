@@ -35,14 +35,19 @@ Each decision lists what was chosen, the alternative that was discarded, and why
   - [`shopspring/decimal`](https://github.com/shopspring/decimal), which has no square root and doesn't report rounding or overflow conditions.
 - **Why:** correctness is the priority. Operands and results are strings because a JSON number becomes an IEEE float in JavaScript and would lose precision before the backend ever saw it.
 
-### 5. Precision: 16 significant digits
+### 5. Number format: plain decimals, 16 digits
 
-- **Chosen:** a single precision of 16 significant digits, shared by operands, results and the display.
-  - A result is exact whenever it fits in 16 digits.
-  - Otherwise it's correctly rounded (half-even) and returned with `"exact": false`, and the UI shows `≈`.
-  - Operands longer than 16 digits are rejected, never silently rounded.
-- **Discarded:** 34 digits (IEEE decimal128) for rounded operations plus 100 digits for exact ones.
-- **Why:** correctness comes from the decimal representation and honest rounding, not from the number of digits. `1 ÷ 3 × 3` can't come back as exactly `1` at any finite precision. Thirty-four digits don't fit on a phone display, and two precision levels added complexity for no visible benefit. Sixteen digits matches everyday calculators, and changing it is a one-constant edit.
+- **Chosen:** one number format shared by operands, results and the display: plain decimals with at most 16 significant digits, 16 integer digits and 16 decimal places. This is the range of a 16-digit pocket calculator.
+  - A result is exact whenever it fits.
+  - Otherwise it's correctly rounded (half-even) and returned with `"exact": false`, and the UI shows `≈`. Results too small for 16 decimal places round to `0`.
+  - Results of 10¹⁶ or more are a `RESULT_OUT_OF_RANGE` error (e.g. `2^64`).
+  - Operands outside the format are rejected, never silently rounded.
+- **Discarded:**
+  - 34 digits (IEEE decimal128) for rounded operations plus 100 digits for exact ones.
+  - Exponent notation (`1.5E+40`) with an exponent range of ±9999.
+- **Why:** correctness comes from the decimal representation and honest rounding, not from the number of digits. `1 ÷ 3 × 3` can't come back as exactly `1` at any finite precision. Thirty-four digits don't fit on a phone display, and two precision levels added complexity for no visible benefit.
+
+  Exponent notation and a huge range brought edge cases nobody using a keypad needs: results too small to reuse, intermediate overflow in `percent_of`, and values the keypad can't type that the display, `±` and backspace would all have to handle. With plain decimals, the only number format is the one the keypad can produce, and the longest value is 19 characters.
 
 ### 6. Percentage as two explicit operations
 

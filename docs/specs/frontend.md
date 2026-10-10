@@ -106,7 +106,7 @@ API actions: `CALC_SUCCESS(id, result, exact)`, `CALC_FAILURE(id, message)`.
 
 | Action          | Behaviour |
 | --------------- | --------- |
-| `DIGIT d`       | `input`: append `d`, replacing a lone `"0"`; at most 16 digits (the backend's `Precision`). Any other phase: `display = d`, phase becomes `input` (from `error`, everything is reset first). |
+| `DIGIT d`       | `input`: append `d`, replacing a lone `"0"`. Ignored if the entry would leave the backend's number format: more than 16 digits in total, or more than 16 after the decimal point. Any other phase: `display = d`, phase becomes `input` (from `error`, everything is reset first). |
 | `DECIMAL`       | `input`: append `"."` if there isn't one. Any other phase: `display = "0."`, phase becomes `input`. |
 | `TOGGLE_SIGN`   | `input` or `result`: add or remove a leading `"-"` (no effect on `"0"`). This is string manipulation, not arithmetic. `operator`: `display = "-0"`, phase becomes `input`. |
 | `BACKSPACE`     | `input` only: remove the last character; `""` or `"-"` becomes `"0"`. |
@@ -191,7 +191,7 @@ Handled keys call `preventDefault()`. Keys pressed with Ctrl, Meta or Alt are ig
 
 - **Secondary line**: the pending expression (e.g. `12 ×`), or the error message in the error state.
 - **Main line**: the display value, exactly as typed or as returned by the backend. There's no client-side rounding or reformatting. A `≈` marker appears when `displayExact` is false.
-- **Long values**: results have at most 16 significant digits (about 23 characters in the worst case, e.g. `-1.844674407370955E+19`). The font steps down in size by length so every value fits on a phone screen. Values are never truncated.
+- **Long values**: values are plain decimals of at most 19 characters (e.g. `-0.1234567890123456`); there is no exponent notation. The font steps down in size by length so every value fits on a phone screen. Values are never truncated.
 - **While a request is in flight**: `aria-busy="true"` and a subtle pending indicator. Keys aren't disabled, to avoid flicker; the reducer ignores input instead.
 - The main line is an `<output aria-live="polite">`, so screen readers announce results.
 
