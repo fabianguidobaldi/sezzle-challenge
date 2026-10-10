@@ -1,4 +1,4 @@
-# Sezzle Calculator
+# Calculator
 
 A full-stack calculator: a React + TypeScript keypad frontend, and a Go REST microservice that does all the arithmetic using exact decimals, so `0.1 + 0.2 = 0.3`.
 
