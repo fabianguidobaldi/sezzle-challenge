@@ -134,3 +134,12 @@ The [frontend spec](../specs/frontend.md) and the frontend part of the [deployme
 - `npm test` passes.
 - Coverage of the files the stage changes is at least 90%.
 - It's committed as one commit, with a message naming the stage.
+
+## Updates after implementation
+
+The plan above is kept as it was written. These changes came after it:
+
+- **Queued keys (fix after stage 5).** Browser testing showed that keys typed while a request was in flight were dropped (`200+10%=` typed quickly gave `20`, not `220`). The reducer now queues them and replays them when the response arrives (spec §4.3).
+- **Footer.** A "Made with ❤️ and Claude" credit line, plus tighter spacing on short phones so it stays on screen (spec §6.3 and §6.4).
+- **Make targets.** `frontend-cover` was merged into `frontend-test`, which now always writes the coverage report, and `backend-run` was renamed `backend-dev`. `check` (lint and test both projects) and `build` (Docker images) were added, and Node is pinned in `frontend/.nvmrc`. Coverage reports are committed.
+- **Linter.** The current Vite template ships oxlint instead of ESLint, so stage 1 uses oxlint.
