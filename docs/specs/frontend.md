@@ -6,7 +6,7 @@ A keypad calculator in React + TypeScript that uses **immediate execution** (lik
 
 - Vite, React and TypeScript (`strict`); plain CSS with custom properties, no UI library.
 - Vitest, React Testing Library, `@testing-library/user-event`, MSW (network mocking), `@vitest/coverage-v8`.
-- ESLint (Vite template config).
+- oxlint (the current Vite template's linter) and `tsc -b` for type checking.
 - The app always calls relative URLs (`/api/...`). In development the Vite proxy forwards `/api` to `http://localhost:8080`; in Docker nginx does the same (see [deployment spec](./deployment.md)). No CORS or env configuration is needed.
 
 ## 2. Layout
@@ -83,6 +83,7 @@ interface State {
   pendingOp: BinaryOp | null;
   phase: Phase;
   request: PendingRequest | null; // an in-flight calculation
+  lastRequestId: number;          // ids increase with every request
   error: string | null;           // user-facing message
 }
 
@@ -90,6 +91,7 @@ interface PendingRequest {
   id: number;                   // increments on every request; stale responses are ignored
   operation: Operation;
   operands: string[];
+  operandsExact: boolean;       // false if any operand was itself a rounded result
   next: BinaryOp | null;        // operator to chain after a binary result (null for '=')
   unary: boolean;               // √ and % replace the display and keep accumulator/pendingOp
 }

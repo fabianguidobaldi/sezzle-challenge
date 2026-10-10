@@ -1,7 +1,9 @@
 .DEFAULT_GOAL := help
-.PHONY: help backend-run backend-test backend-cover backend-lint backend-docker
+.PHONY: help backend-run backend-test backend-cover backend-lint backend-docker \
+	frontend-install frontend-dev frontend-test frontend-cover frontend-lint
 
 BACKEND := backend
+FRONTEND := frontend
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-16s %s\n", $$1, $$2}'
@@ -25,3 +27,18 @@ backend-lint: ## Check formatting and run go vet
 
 backend-docker: ## Build the backend image
 	docker build -t sezzle-calculator-backend $(BACKEND)
+
+frontend-install: ## Install frontend dependencies
+	cd $(FRONTEND) && npm ci
+
+frontend-dev: ## Run the frontend dev server (proxies /api to :8080)
+	cd $(FRONTEND) && npm run dev
+
+frontend-test: ## Run frontend tests
+	cd $(FRONTEND) && npm test
+
+frontend-cover: ## Frontend coverage report: frontend/coverage/index.html
+	cd $(FRONTEND) && npm run test:coverage
+
+frontend-lint: ## Lint and type-check the frontend
+	cd $(FRONTEND) && npm run lint && npm run typecheck
